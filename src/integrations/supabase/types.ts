@@ -14,7 +14,283 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      campaign_churches: {
+        Row: {
+          added_at: string
+          campaign_id: string
+          church_id: string
+          id: string
+        }
+        Insert: {
+          added_at?: string
+          campaign_id: string
+          church_id: string
+          id?: string
+        }
+        Update: {
+          added_at?: string
+          campaign_id?: string
+          church_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_churches_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_churches_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaigns: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["campaign_status"] | null
+          target_countries: string[] | null
+          target_denominations: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"] | null
+          target_countries?: string[] | null
+          target_denominations?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"] | null
+          target_countries?: string[] | null
+          target_denominations?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      churches: {
+        Row: {
+          address: string | null
+          city: string | null
+          contact_name: string | null
+          country: string
+          created_at: string
+          created_by: string | null
+          denomination: string | null
+          email: string | null
+          facebook: string | null
+          id: string
+          instagram: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          postal_code: string | null
+          size_category: string | null
+          updated_at: string
+          verified: boolean | null
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          contact_name?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          denomination?: string | null
+          email?: string | null
+          facebook?: string | null
+          id?: string
+          instagram?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          size_category?: string | null
+          updated_at?: string
+          verified?: boolean | null
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          contact_name?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          denomination?: string | null
+          email?: string | null
+          facebook?: string | null
+          id?: string
+          instagram?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          size_category?: string | null
+          updated_at?: string
+          verified?: boolean | null
+          website?: string | null
+        }
+        Relationships: []
+      }
+      messages: {
+        Row: {
+          campaign_id: string | null
+          church_id: string
+          clicked_at: string | null
+          content: string
+          created_at: string
+          created_by: string
+          delivered_at: string | null
+          external_id: string | null
+          failed_reason: string | null
+          id: string
+          metadata: Json | null
+          opened_at: string | null
+          recipient_email: string | null
+          recipient_phone: string | null
+          replied_at: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["message_status"] | null
+          subject: string | null
+          template_id: string | null
+          type: Database["public"]["Enums"]["message_type"]
+        }
+        Insert: {
+          campaign_id?: string | null
+          church_id: string
+          clicked_at?: string | null
+          content: string
+          created_at?: string
+          created_by: string
+          delivered_at?: string | null
+          external_id?: string | null
+          failed_reason?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["message_status"] | null
+          subject?: string | null
+          template_id?: string | null
+          type: Database["public"]["Enums"]["message_type"]
+        }
+        Update: {
+          campaign_id?: string | null
+          church_id?: string
+          clicked_at?: string | null
+          content?: string
+          created_at?: string
+          created_by?: string
+          delivered_at?: string | null
+          external_id?: string | null
+          failed_reason?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          recipient_email?: string | null
+          recipient_phone?: string | null
+          replied_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["message_status"] | null
+          subject?: string | null
+          template_id?: string | null
+          type?: Database["public"]["Enums"]["message_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      templates: {
+        Row: {
+          content: string
+          created_at: string
+          created_by: string
+          id: string
+          is_default: boolean | null
+          language: string | null
+          name: string
+          subject: string | null
+          type: Database["public"]["Enums"]["message_type"]
+          updated_at: string
+          variables: Json | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_default?: boolean | null
+          language?: string | null
+          name: string
+          subject?: string | null
+          type: Database["public"]["Enums"]["message_type"]
+          updated_at?: string
+          variables?: Json | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_default?: boolean | null
+          language?: string | null
+          name?: string
+          subject?: string | null
+          type?: Database["public"]["Enums"]["message_type"]
+          updated_at?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +299,16 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      campaign_status: "draft" | "active" | "paused" | "completed" | "cancelled"
+      message_status:
+        | "pending"
+        | "sent"
+        | "delivered"
+        | "opened"
+        | "clicked"
+        | "replied"
+        | "failed"
+      message_type: "email" | "sms" | "whatsapp"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +435,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      campaign_status: ["draft", "active", "paused", "completed", "cancelled"],
+      message_status: [
+        "pending",
+        "sent",
+        "delivered",
+        "opened",
+        "clicked",
+        "replied",
+        "failed",
+      ],
+      message_type: ["email", "sms", "whatsapp"],
+    },
   },
 } as const
