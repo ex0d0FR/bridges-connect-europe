@@ -1,1 +1,16 @@
 project_id = "ovoldtknfdyvyypadnmf"
+
+[functions.church-discovery]
+verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.send-sms]
+verify_jwt = true
+
+[functions.campaign-management]
+verify_jwt = true
+
+[functions.analytics]
+verify_jwt = true
