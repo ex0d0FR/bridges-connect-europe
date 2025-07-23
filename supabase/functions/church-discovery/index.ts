@@ -337,57 +337,53 @@ function extractDenomination(name: string, description: string): string {
 function isCatholic(church: DiscoveredChurch): boolean {
   const text = `${church.name} ${church.denomination || ''} ${church.address || ''}`.toLowerCase();
   
-  // Multi-language Catholic keywords (enhanced detection)
-  const catholicKeywords = [
+  // First check for strong Protestant indicators - these override everything
+  const strongProtestantIndicators = /\b(protestant|évangélique|evangelica|evangelico|evangelical|evangélica|baptiste|baptist|bautista|methodist|metodista|méthodiste|lutheran|luterana|luthérien|presbyterian|presbiteriana|presbytérien|pentecostal|pentecôtiste|adventist|adventista|adventiste|reformed|reformada|réformée|assemblies|assembly|assemblée|asamblea|église protestante|iglesia protestante|chiesa protestante|igreja protestante|temple protestant|iglesia evangélica|église évangélique|chiesa evangelica|igreja evangélica)\b/i;
+  
+  if (strongProtestantIndicators.test(text)) {
+    return false; // Definitely not Catholic
+  }
+  
+  // Strong Catholic indicators (more specific than before)
+  const strongCatholicKeywords = [
     // Direct Catholic terms
-    'catholic', 'católica', 'catholique', 'cattolica', 'katholische', 'católica',
+    'catholic', 'católica', 'catholique', 'cattolica', 'katholische',
     'roman catholic', 'católica romana', 'catholique romaine',
     
-    // Saint prefixes (very strong indicator)
-    'notre dame', 'our lady', 'nuestra señora', 'madonna',
-    'san ', 'santa ', 'saint ', 'santo ', 'sta. ', 'st. ', 'ste. ',
-    'são ', 'são ', 'sankt ', 'holy ',
-    
-    // Catholic institution terms
-    'parish', 'parroquia', 'paroisse', 'parrocchia', 'pfarrei', 'paróquia',
-    'basilica', 'basílica', 'basilique', 'basilica', 'basilika',
+    // Catholic-specific institutions
+    'basilica', 'basílica', 'basilique', 'basilika',
     'cathedral', 'catedral', 'cathédrale', 'cattedrale', 'kathedrale',
     'abbey', 'abadía', 'abbaye', 'abbazia', 'abtei',
-    'monastery', 'monasterio', 'monastère', 'monastero', 'kloster',
-    'convent', 'convento', 'couvent', 'convento', 'kloster',
+    'monastery', 'monasterio', 'monastère', 'monastero',
+    'convent', 'convento', 'couvent',
     
-    // Catholic specific terms
+    // Catholic administrative terms
     'diocese', 'archdiocese', 'diócesis', 'archidiócesis', 'diocèse', 'archidiocèse',
-    'mass', 'misa', 'messe', 'messa', 'messe',
+    'parish', 'parroquia', 'paroisse', 'parrocchia', 'pfarrei', 'paróquia',
     'papal', 'pontifical', 'vatican', 'vaticano',
     
-    // Catholic orders and movements
+    // Catholic orders
     'jesuits', 'jesuitas', 'jésuites', 'gesuiti', 'jesuiten',
     'franciscan', 'franciscano', 'franciscain', 'francescano', 'franziskaner',
     'dominican', 'dominico', 'dominicain', 'domenicano', 'dominikaner',
     'benedictine', 'benedictino', 'bénédictin', 'benedettino', 'benediktiner',
-    'opus dei', 'carmelite', 'carmelita', 'carmélite', 'carmelitano'
+    'opus dei', 'carmelite', 'carmelita', 'carmélite', 'carmelitano',
+    
+    // Catholic-specific devotions
+    'notre dame', 'our lady', 'nuestra señora', 'madonna'
   ];
   
   // Check for strong Catholic indicators
-  const hasStrongCatholicIndicator = catholicKeywords.some(keyword => {
-    if (keyword.endsWith(' ')) {
-      // For keywords ending with space, check if they appear at word boundaries
-      return text.includes(keyword) || text.includes(keyword.trim() + '-');
-    }
-    return text.includes(keyword);
-  });
+  const hasStrongCatholicIndicator = strongCatholicKeywords.some(keyword => 
+    text.includes(keyword.toLowerCase())
+  );
   
-  // Additional check for saint names patterns - but only if no Protestant indicators
+  // Saint pattern - but only if no Protestant context
   const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+[a-z]/i;
   const hasSaintPattern = saintPattern.test(church.name);
   
-  // Protestant indicators that override saint names (multi-language)
-  const protestantIndicators = /\b(protestant|évangélique|evangelica|evangelico|evangelical|evangélica|baptiste|baptist|bautista|methodist|metodista|méthodiste|lutheran|luterana|luthérien|presbyterian|presbiteriana|presbytérien|pentecostal|pentecôtiste|adventist|adventista|adventiste|reformed|reformada|réformée|assemblies|assembly|assemblée|asamblea|temple|iglesia protestante|église protestante|chiesa protestante|igreja protestante)\b/i;
-  const hasProtestantIndicator = protestantIndicators.test(text);
-  
-  // Only consider it Catholic if it has Catholic indicators and no Protestant indicators
-  return hasStrongCatholicIndicator || (hasSaintPattern && !hasProtestantIndicator);
+  // Only consider it Catholic if it has strong Catholic indicators OR saint pattern without Protestant context
+  return hasStrongCatholicIndicator || hasSaintPattern;
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
