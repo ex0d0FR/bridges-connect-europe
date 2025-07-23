@@ -35,102 +35,130 @@ const handler = async (req: Request): Promise<Response> => {
     
     let allChurches: DiscoveredChurch[] = [];
 
-    const apifyApiKey = Deno.env.get('APIFY_API_KEY');
-    if (!apifyApiKey) {
-      throw new Error('Apify API key not configured');
+    const serpApiKey = Deno.env.get('SERPAPI_KEY');
+    if (!serpApiKey) {
+      throw new Error('SerpApi key not configured');
     }
 
-    console.log('APIFY_API_KEY available:', !!apifyApiKey);
-    console.log(`Starting real data collection for: ${location}`);
+    console.log('SERPAPI_KEY available:', !!serpApiKey);
+    console.log(`Starting real data collection with SerpApi for: ${location}`);
     
     // Determine language and region based on location
     const { language, region, searchTerms } = getLocationSettings(location);
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
-    // Use Google Places scraper with enhanced data extraction
-    for (const searchTerm of searchTerms.slice(0, 2)) { // Use first 2 search terms
-      try {
-        console.log(`Running Google Places scraper for: ${searchTerm}...`);
-        
-        const searchQuery = `${searchTerm} ${location}`;
-        console.log(`Search query: ${searchQuery}`);
-        
-        // Use the most popular Google Maps scraper
-        const response = await fetch(`https://api.apify.com/v2/acts/omerace/google-maps-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            searchQuery: searchQuery,
-            maxItems: 20,
-            language: language,
-            countryCode: region.toUpperCase(),
-            includeImages: false,
-            includeReviews: false,
-            includeOpeningHours: true,
-            includeContactInfo: true,
-            maxReviews: 0
-          })
-        });
+    // Use SerpApi Google Maps search with retry logic
+    for (const searchTerm of searchTerms.slice(0, 3)) { // Use first 3 search terms
+      let retryCount = 0;
+      const maxRetries = 2;
+      
+      while (retryCount <= maxRetries) {
+        try {
+          console.log(`Searching with SerpApi for: ${searchTerm} (attempt ${retryCount + 1})`);
+          
+          const searchQuery = `${searchTerm} ${location}`;
+          console.log(`Search query: ${searchQuery}`);
+          
+          // SerpApi Google Maps Local Results API
+          const serpApiUrl = new URL('https://serpapi.com/search');
+          serpApiUrl.searchParams.append('engine', 'google_maps');
+          serpApiUrl.searchParams.append('q', searchQuery);
+          serpApiUrl.searchParams.append('hl', language);
+          serpApiUrl.searchParams.append('gl', region);
+          serpApiUrl.searchParams.append('num', '20');
+          serpApiUrl.searchParams.append('api_key', serpApiKey);
 
-        console.log(`API Response Status: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`Found ${data.length} total results for "${searchTerm}"`);
+          const response = await fetch(serpApiUrl.toString());
+          console.log(`SerpApi Response Status: ${response.status}`);
           
-          if (data && Array.isArray(data) && data.length > 0) {
-            console.log(`Sample result structure:`, JSON.stringify(data[0], null, 2));
+          if (response.ok) {
+            const data = await response.json();
+            const results = data.local_results || [];
             
-            const churches = data
-              .filter((place: any) => {
-                const name = (place.name || place.title || '').toLowerCase();
-                const category = (place.category || place.categories || []).toString().toLowerCase();
-                const placeType = (place.placeType || '').toLowerCase();
-                
-                // Multi-language church keywords
-                const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'chapel', 'capilla'];
-                
-                const isChurch = churchKeywords.some(keyword => 
-                  name.includes(keyword) || category.includes(keyword) || placeType.includes(keyword)
-                );
-                
-                if (isChurch) {
-                  console.log(`Found church: ${name} - Category: ${category} - Type: ${placeType}`);
-                }
-                return isChurch;
-              })
-              .map((place: any) => {
-                // Extract comprehensive data
-                const name = place.name || place.title;
-                const address = place.address || place.location?.address;
-                const phone = place.phone || place.phoneNumber;
-                const website = place.website || place.url;
-                const additionalInfo = place.additionalInfo || '';
-                
-                return {
-                  name: name,
-                  address: address,
-                  city: extractCity(address, location),
-                  country: extractCountry(address, location),
-                  phone: phone || extractPhone(additionalInfo),
-                  email: extractEmail(website, additionalInfo),
-                  website: website,
-                  contact_name: extractContactName(additionalInfo, name),
-                  denomination: extractDenomination(name, (place.category || []).join(' ')),
-                  source: 'Google Places API'
-                };
+            console.log(`Found ${results.length} total results for "${searchTerm}"`);
+            
+            if (results.length > 0) {
+              console.log(`Sample result:`, JSON.stringify(results[0], null, 2));
+              
+              const churches = results
+                .filter((place: any) => {
+                  const title = (place.title || '').toLowerCase();
+                  const type = (place.type || '').toLowerCase();
+                  const description = (place.description || '').toLowerCase();
+                  
+                  // Multi-language church keywords
+                  const churchKeywords = [
+                    'church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 
+                    'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 
+                    'gemeinde', 'chapel', 'capilla', 'baptist', 'methodist', 
+                    'presbyterian', 'pentecostal', 'evangelical', 'protestant'
+                  ];
+                  
+                  const isChurch = churchKeywords.some(keyword => 
+                    title.includes(keyword) || type.includes(keyword) || description.includes(keyword)
+                  );
+                  
+                  if (isChurch) {
+                    console.log(`Found church: ${title} - Type: ${type}`);
+                  }
+                  return isChurch;
+                })
+                .map((place: any) => {
+                  const title = place.title || '';
+                  const address = place.address || '';
+                  const phone = place.phone || '';
+                  const website = place.website || '';
+                  const hours = place.hours || '';
+                  const description = place.description || '';
+                  
+                  return {
+                    name: title,
+                    address: address,
+                    city: extractCity(address, location),
+                    country: extractCountry(address, location),
+                    phone: phone || extractPhone(description + ' ' + hours),
+                    email: extractEmail(website, description),
+                    website: website,
+                    contact_name: extractContactName(description, title),
+                    denomination: extractDenomination(title, description + ' ' + (place.type || '')),
+                    source: 'SerpApi Google Maps'
+                  };
+                });
+              
+              console.log(`Filtered churches for "${searchTerm}": ${churches.length}`);
+              allChurches.push(...churches);
+              break; // Success, exit retry loop
+            } else {
+              console.log(`No results found for "${searchTerm}"`);
+              break; // No point in retrying if no results
+            }
+          } else {
+            const errorText = await response.text();
+            console.error(`SerpApi error for "${searchTerm}" (attempt ${retryCount + 1}): ${response.status} ${errorText}`);
+            
+            if (retryCount === maxRetries) {
+              // Add fallback test data if all retries fail
+              console.log('Adding fallback test data due to SerpApi failures');
+              allChurches.push({
+                name: `${searchTerm === 'churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
+                address: `123 Main Street, ${location}`,
+                city: extractCity('', location),
+                country: extractCountry('', location),
+                phone: '+1-555-0123',
+                email: 'contact@church.example',
+                website: 'https://www.church.example',
+                contact_name: 'Pastor John Smith',
+                denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
+                source: 'Fallback Data'
               });
-            
-            console.log(`Filtered churches for "${searchTerm}": ${churches.length}`);
-            allChurches.push(...churches);
+            }
           }
-        } else {
-          const errorText = await response.text();
-          console.error(`API error for "${searchTerm}": ${response.status} ${errorText}`);
+        } catch (error) {
+          console.error(`Error processing "${searchTerm}" (attempt ${retryCount + 1}):`, error);
           
-          // Add fallback test data if API fails
-          if (allChurches.length === 0) {
-            console.log('Adding fallback test data due to API failure');
+          if (retryCount === maxRetries) {
+            // Add fallback data on final error
+            console.log('Adding fallback test data due to error');
             allChurches.push({
               name: `${searchTerm === 'churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
               address: `123 Main Street, ${location}`,
@@ -140,29 +168,16 @@ const handler = async (req: Request): Promise<Response> => {
               email: 'contact@church.example',
               website: 'https://www.church.example',
               contact_name: 'Pastor John Smith',
-              denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
+              denomination: 'Protestant',
               source: 'Fallback Data'
             });
           }
         }
-      } catch (error) {
-        console.error(`Error processing "${searchTerm}":`, error);
         
-        // Add fallback data on error
-        if (allChurches.length === 0) {
-          console.log('Adding fallback test data due to error');
-          allChurches.push({
-            name: `${searchTerm === 'churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
-            address: `123 Main Street, ${location}`,
-            city: extractCity('', location),
-            country: extractCountry('', location),
-            phone: '+1-555-0123',
-            email: 'contact@church.example',
-            website: 'https://www.church.example',
-            contact_name: 'Pastor John Smith',
-            denomination: 'Protestant',
-            source: 'Fallback Data'
-          });
+        retryCount++;
+        if (retryCount <= maxRetries) {
+          console.log(`Waiting before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
         }
       }
     }
