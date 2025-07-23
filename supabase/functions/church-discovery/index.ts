@@ -378,11 +378,16 @@ function isCatholic(church: DiscoveredChurch): boolean {
     return text.includes(keyword);
   });
   
-  // Additional check for saint names patterns
+  // Additional check for saint names patterns - but only if no Protestant indicators
   const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+[a-z]/i;
   const hasSaintPattern = saintPattern.test(church.name);
   
-  return hasStrongCatholicIndicator || hasSaintPattern;
+  // Protestant indicators that override saint names
+  const protestantIndicators = /\b(protestant|évangélique|evangelical|baptist|methodist|lutheran|presbyterian|pentecostal|adventist|reformed|assemblies|assembly)\b/i;
+  const hasProtestantIndicator = protestantIndicators.test(text);
+  
+  // Only consider it Catholic if it has Catholic indicators and no Protestant indicators
+  return hasStrongCatholicIndicator || (hasSaintPattern && !hasProtestantIndicator);
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
