@@ -63,19 +63,24 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (googleMapsResponse.ok) {
         const googleData = await googleMapsResponse.json();
-        console.log(`Google Maps raw response:`, JSON.stringify(googleData, null, 2));
-        console.log(`Google Maps found ${googleData.length} results`);
+        console.log(`Google Maps API Response Status: ${googleMapsResponse.status}`);
+        console.log(`Google Maps raw response sample:`, JSON.stringify(googleData.slice(0, 2), null, 2));
+        console.log(`Google Maps found ${googleData.length} total results`);
         
         if (googleData && Array.isArray(googleData) && googleData.length > 0) {
           const googleChurches = googleData
             .filter((place: any) => {
               const title = (place.title || place.name || '').toLowerCase();
-              const category = (place.categoryName || '').toLowerCase();
+              const category = (place.categoryName || place.category || '').toLowerCase();
               
               // Multi-language church keywords
               const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde'];
               
-              return churchKeywords.some(keyword => title.includes(keyword) || category.includes(keyword));
+              const isChurch = churchKeywords.some(keyword => title.includes(keyword) || category.includes(keyword));
+              if (isChurch) {
+                console.log(`Found potential church: ${title} - Category: ${category}`);
+              }
+              return isChurch;
             })
             .map((place: any) => ({
               name: place.title || place.name,
@@ -91,9 +96,12 @@ const handler = async (req: Request): Promise<Response> => {
           
           console.log(`Filtered Google churches: ${googleChurches.length}`);
           allChurches.push(...googleChurches);
+        } else {
+          console.log('No valid data received from Google Maps API');
         }
       } else {
-        console.error('Google Maps API error:', googleMapsResponse.status, await googleMapsResponse.text());
+        const errorText = await googleMapsResponse.text();
+        console.error(`Google Maps API error: ${googleMapsResponse.status} ${errorText}`);
       }
       } catch (error) {
         console.error(`Google Maps scraper error for ${searchTerm}:`, error);
