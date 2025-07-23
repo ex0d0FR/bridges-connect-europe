@@ -26,7 +26,8 @@ export function CreateCampaignDialog({ open, onOpenChange, onCampaignCreated }: 
   const [formData, setFormData] = useState({
     name: "",
     template_id: "",
-    message_type: ""
+    message_type: "",
+    description: ""
   })
   const { toast } = useToast()
   const { t } = useLanguage()
@@ -62,16 +63,18 @@ export function CreateCampaignDialog({ open, onOpenChange, onCampaignCreated }: 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
-      const { error } = await supabase
+      const { data: newCampaign, error } = await supabase
         .from('campaigns')
         .insert([
           {
             name: formData.name,
-            description: `Campaign using ${selectedTemplate?.name} template`,
+            description: formData.description || `Campaign using ${selectedTemplate?.name} template`,
             created_by: user.id,
             status: 'draft'
           }
         ])
+        .select()
+        .single()
 
       if (error) throw error
 
@@ -80,7 +83,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onCampaignCreated }: 
         description: "Campaign created successfully",
       })
 
-      setFormData({ name: "", template_id: "", message_type: "" })
+      setFormData({ name: "", template_id: "", message_type: "", description: "" })
       onCampaignCreated()
       onOpenChange(false)
     } catch (error) {
@@ -115,6 +118,16 @@ export function CreateCampaignDialog({ open, onOpenChange, onCampaignCreated }: 
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Enter campaign name"
               required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Input
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Campaign description"
             />
           </div>
           

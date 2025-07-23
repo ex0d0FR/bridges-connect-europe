@@ -2,10 +2,11 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Mail, MessageSquare, Globe, MessageCircle, Edit, Trash2 } from "lucide-react"
+import { Plus, Mail, MessageSquare, Globe, MessageCircle, Edit, Trash2, Send } from "lucide-react"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { CreateTemplateDialog } from "@/components/CreateTemplateDialog"
 import { EditTemplateDialog } from "@/components/EditTemplateDialog"
+import { TestMessageDialog } from "@/components/TestMessageDialog"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -23,6 +24,7 @@ export default function Templates() {
   const { toast } = useToast()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showTestDialog, setShowTestDialog] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -92,6 +94,11 @@ export default function Templates() {
   const handleEditTemplate = (template: Template) => {
     setSelectedTemplate(template)
     setShowEditDialog(true)
+  }
+
+  const handleTestTemplate = (template: Template) => {
+    setSelectedTemplate(template)
+    setShowTestDialog(true)
   }
 
   return (
@@ -220,15 +227,25 @@ export default function Templates() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleTestTemplate(template)}
+                    >
+                      <Send className="h-4 w-4 mr-2" />
+                      Test
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => handleEditTemplate(template)}>
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
                     </Button>
                     <Button 
-                      variant="outline" 
+                      variant="destructive" 
                       size="sm"
                       onClick={() => handleDeleteTemplate(template.id)}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
                     </Button>
                   </div>
                 </div>
@@ -250,6 +267,14 @@ export default function Templates() {
         onTemplateUpdated={fetchTemplates}
         template={selectedTemplate}
       />
+      
+      {selectedTemplate && (
+        <TestMessageDialog
+          open={showTestDialog}
+          onOpenChange={setShowTestDialog}
+          template={selectedTemplate}
+        />
+      )}
     </div>
   )
 }

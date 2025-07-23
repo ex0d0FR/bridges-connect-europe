@@ -116,9 +116,150 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (churchesError) {
         console.error('Error fetching campaign churches:', churchesError);
-      } else {
-        console.log(`Campaign started with ${campaignChurches?.length || 0} churches`);
+        throw new Error(`Failed to fetch campaign churches: ${churchesError.message}`);
       }
+
+      if (!campaignChurches || campaignChurches.length === 0) {
+        throw new Error('No churches assigned to this campaign. Please add churches before launching.');
+      }
+
+      // Get campaign template for message content
+      const { data: templates, error: templateError } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('created_by', user.id)
+        .limit(1);
+
+      if (templateError || !templates?.length) {
+        console.error('Error fetching template:', templateError);
+        throw new Error('No template found for this campaign');
+      }
+
+      const template = templates[0];
+      console.log(`Starting to send ${template.type} messages to ${campaignChurches.length} churches`);
+
+      // Process each church and send messages
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const campaignChurch of campaignChurches) {
+        const church = campaignChurch.churches;
+        if (!church) continue;
+
+        try {
+          let messageData: any = {
+            campaign_id: campaignId,
+            church_id: church.id,
+            template_id: template.id,
+            type: template.type,
+            content: template.content,
+            subject: template.subject,
+            created_by: user.id,
+            status: 'pending'
+          };
+
+          // Set recipient based on message type
+          if (template.type === 'email' && church.email) {
+            messageData.recipient_email = church.email;
+          } else if ((template.type === 'sms' || template.type === 'whatsapp') && church.phone) {
+            messageData.recipient_phone = church.phone;
+          } else {
+            console.log(`Skipping church ${church.name} - no ${template.type} contact info`);
+            continue;
+          }
+
+          // Insert message record
+          const { data: messageRecord, error: messageError } = await supabase
+            .from('messages')
+            .insert([messageData])
+            .select()
+            .single();
+
+          if (messageError) {
+            console.error(`Error creating message record for church ${church.name}:`, messageError);
+            failureCount++;
+            continue;
+          }
+
+          // Send the actual message based on type
+          if (template.type === 'email') {
+            const { error: emailError } = await supabase.functions.invoke('send-email', {
+              body: {
+                to: church.email,
+                subject: template.subject || `Message from ${campaign.name}`,
+                content: template.content,
+                messageId: messageRecord.id
+              }
+            });
+
+            if (emailError) {
+              console.error(`Error sending email to ${church.name}:`, emailError);
+              await supabase
+                .from('messages')
+                .update({ status: 'failed', failed_reason: emailError.message })
+                .eq('id', messageRecord.id);
+              failureCount++;
+            } else {
+              await supabase
+                .from('messages')
+                .update({ status: 'sent', sent_at: new Date().toISOString() })
+                .eq('id', messageRecord.id);
+              successCount++;
+            }
+          } else if (template.type === 'sms') {
+            const { error: smsError } = await supabase.functions.invoke('send-sms', {
+              body: {
+                to: church.phone,
+                message: template.content,
+                messageId: messageRecord.id
+              }
+            });
+
+            if (smsError) {
+              console.error(`Error sending SMS to ${church.name}:`, smsError);
+              await supabase
+                .from('messages')
+                .update({ status: 'failed', failed_reason: smsError.message })
+                .eq('id', messageRecord.id);
+              failureCount++;
+            } else {
+              await supabase
+                .from('messages')
+                .update({ status: 'sent', sent_at: new Date().toISOString() })
+                .eq('id', messageRecord.id);
+              successCount++;
+            }
+          } else if (template.type === 'whatsapp') {
+            const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
+              body: {
+                to: church.phone,
+                message: template.content,
+                messageId: messageRecord.id
+              }
+            });
+
+            if (whatsappError) {
+              console.error(`Error sending WhatsApp to ${church.name}:`, whatsappError);
+              await supabase
+                .from('messages')
+                .update({ status: 'failed', failed_reason: whatsappError.message })
+                .eq('id', messageRecord.id);
+              failureCount++;
+            } else {
+              await supabase
+                .from('messages')
+                .update({ status: 'sent', sent_at: new Date().toISOString() })
+                .eq('id', messageRecord.id);
+              successCount++;
+            }
+          }
+        } catch (error: any) {
+          console.error(`Error processing church ${church.name}:`, error);
+          failureCount++;
+        }
+      }
+
+      console.log(`Campaign ${campaignId} completed: ${successCount} sent, ${failureCount} failed`);
     }
 
     console.log(`Campaign ${campaignId} ${action} completed successfully`);

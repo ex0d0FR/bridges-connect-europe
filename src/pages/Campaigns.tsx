@@ -1,50 +1,21 @@
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Send, Users, BarChart3, Mail, MessageSquare, MessageCircle } from "lucide-react"
 import { CreateCampaignDialog } from "@/components/CreateCampaignDialog"
-import { supabase } from "@/integrations/supabase/client"
-import { useToast } from "@/hooks/use-toast"
-
-interface Campaign {
-  id: string
-  name: string
-  status: 'draft' | 'active' | 'completed' | 'paused' | 'cancelled'
-  created_at: string
-  description: string
-}
+import { ManageCampaignChurchesDialog } from "@/components/ManageCampaignChurchesDialog"
+import { useCampaigns, useCampaignStats, useLaunchCampaign, Campaign } from "@/hooks/useCampaigns"
 
 export default function Campaigns() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
-
-  useEffect(() => {
-    fetchCampaigns()
-  }, [])
-
-  const fetchCampaigns = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .eq('created_by', user.id)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setCampaigns(data || [])
-    } catch (error) {
-      console.error('Error fetching campaigns:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const [showManageChurchesDialog, setShowManageChurchesDialog] = useState(false)
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
+  
+  const { data: campaigns = [], isLoading, refetch: refetchCampaigns } = useCampaigns()
+  const { data: stats } = useCampaignStats()
+  const launchCampaignMutation = useLaunchCampaign()
 
   const getMessageTypeIcon = (type: string) => {
     switch (type) {
@@ -72,31 +43,13 @@ export default function Campaigns() {
     }
   }
 
-  const handleLaunchCampaign = async (campaignId: string) => {
-    try {
-      const { error } = await supabase.functions.invoke('campaign-management', {
-        body: {
-          action: 'start',
-          campaignId: campaignId
-        }
-      })
+  const handleLaunchCampaign = (campaignId: string) => {
+    launchCampaignMutation.mutate(campaignId)
+  }
 
-      if (error) throw error
-
-      toast({
-        title: "Success",
-        description: "Campaign launched successfully",
-      })
-
-      fetchCampaigns()
-    } catch (error) {
-      console.error('Error launching campaign:', error)
-      toast({
-        title: "Error",
-        description: "Failed to launch campaign",
-        variant: "destructive",
-      })
-    }
+  const handleManageChurches = (campaign: Campaign) => {
+    setSelectedCampaign(campaign)
+    setShowManageChurchesDialog(true)
   }
 
   return (
@@ -121,7 +74,7 @@ export default function Campaigns() {
             <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{stats?.active || 0}</div>
           </CardContent>
         </Card>
         
@@ -130,7 +83,7 @@ export default function Campaigns() {
             <CardTitle className="text-sm font-medium">Draft Campaigns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{stats?.draft || 0}</div>
           </CardContent>
         </Card>
         
@@ -139,7 +92,7 @@ export default function Campaigns() {
             <CardTitle className="text-sm font-medium">Completed Campaigns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">{stats?.completed || 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -189,17 +142,25 @@ export default function Campaigns() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => handleManageChurches(campaign)}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Churches
+                    </Button>
                     <Button variant="outline" size="sm">
                       <BarChart3 className="h-4 w-4 mr-2" />
                       Analytics
                     </Button>
                     <Button 
                       size="sm" 
-                      disabled={campaign.status !== 'draft'}
+                      disabled={campaign.status !== 'draft' || launchCampaignMutation.isPending}
                       onClick={() => handleLaunchCampaign(campaign.id)}
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      Launch
+                      {launchCampaignMutation.isPending ? "Launching..." : "Launch"}
                     </Button>
                   </div>
                 </div>
@@ -212,8 +173,18 @@ export default function Campaigns() {
       <CreateCampaignDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
-        onCampaignCreated={fetchCampaigns}
+        onCampaignCreated={refetchCampaigns}
       />
+      
+      {selectedCampaign && (
+        <ManageCampaignChurchesDialog
+          open={showManageChurchesDialog}
+          onOpenChange={setShowManageChurchesDialog}
+          campaignId={selectedCampaign.id}
+          campaignName={selectedCampaign.name}
+          onUpdate={refetchCampaigns}
+        />
+      )}
     </div>
   )
 }
