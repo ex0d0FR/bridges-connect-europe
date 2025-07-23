@@ -12,9 +12,21 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table"
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Plus, Search, Filter, Upload, Download, Mail, Phone, Globe, Trash2, Edit } from "lucide-react"
-import { useChurches } from "@/hooks/useChurches"
+import { useChurches, useDeleteChurch } from "@/hooks/useChurches"
 import AddChurchDialog from "@/components/AddChurchDialog"
+import EditChurchDialog from "@/components/EditChurchDialog"
 import { formatDistanceToNow } from "date-fns"
 
 export default function Churches() {
@@ -30,6 +42,7 @@ export default function Churches() {
   }, [searchTerm])
 
   const { data: churches, isLoading, error } = useChurches(debouncedSearchTerm)
+  const deleteChurch = useDeleteChurch()
 
   return (
     <div className="space-y-6">
@@ -183,12 +196,31 @@ export default function Churches() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <EditChurchDialog church={church} />
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Church</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{church.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteChurch.mutate(church.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       </TableCell>
                     </TableRow>
