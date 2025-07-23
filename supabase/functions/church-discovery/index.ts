@@ -34,144 +34,98 @@ const handler = async (req: Request): Promise<Response> => {
     
     let allChurches: DiscoveredChurch[] = [];
 
-    // For testing, provide mock data for different locations
-    const locationLower = location.toLowerCase();
-    
-    if (locationLower.includes('madrid')) {
-      allChurches = [
-        {
-          name: 'Iglesia Evangélica Bautista de Madrid',
-          address: 'Calle Alcalá 123, Madrid',
-          city: 'Madrid',
-          country: 'Spain',
-          phone: '+34 91 123 4567',
-          denomination: 'Baptist',
-          source: 'Test Data'
-        },
-        {
-          name: 'Centro Cristiano Vida Nueva',
-          address: 'Gran Vía 456, Madrid',
-          city: 'Madrid', 
-          country: 'Spain',
-          phone: '+34 91 765 4321',
-          denomination: 'Evangelical',
-          source: 'Test Data'
-        },
-        {
-          name: 'Iglesia Metodista Unida',
-          address: 'Calle Serrano 89, Madrid',
-          city: 'Madrid',
-          country: 'Spain',
-          phone: '+34 91 555 0123',
-          denomination: 'Methodist',
-          source: 'Test Data'
-        }
-      ];
-      console.log('Added test churches for Madrid:', allChurches.length);
-    } else if (locationLower.includes('valencia')) {
-      allChurches = [
-        {
-          name: 'Iglesia Protestante de Valencia',
-          address: 'Plaza del Ayuntamiento 15, Valencia',
-          city: 'Valencia',
-          country: 'Spain',
-          phone: '+34 96 123 4567',
-          denomination: 'Protestant',
-          source: 'Test Data'
-        },
-        {
-          name: 'Centro Evangélico Betesda',
-          address: 'Avenida del Puerto 234, Valencia',
-          city: 'Valencia',
-          country: 'Spain',
-          phone: '+34 96 987 6543',
-          denomination: 'Evangelical',
-          source: 'Test Data'
-        }
-      ];
-      console.log('Added test churches for Valencia:', allChurches.length);
-    } else if (locationLower.includes('guatemala')) {
-      allChurches = [
-        {
-          name: 'Iglesia Evangélica Nacional Presbiteriana de Guatemala',
-          address: 'Zona 1, Ciudad de Guatemala',
-          city: 'Guatemala City',
-          country: 'Guatemala',
-          phone: '+502 2251 4567',
-          denomination: 'Presbyterian',
-          source: 'Test Data'
-        },
-        {
-          name: 'Iglesia del Nazareno Central',
-          address: 'Zona 10, Ciudad de Guatemala',
-          city: 'Guatemala City',
-          country: 'Guatemala',
-          phone: '+502 2367 8901',
-          denomination: 'Nazarene',
-          source: 'Test Data'
-        }
-      ];
-      console.log('Added test churches for Guatemala:', allChurches.length);
-    } else if (locationLower.includes('miami') || locationLower.includes('usa')) {
-      allChurches = [
-        {
-          name: 'First Baptist Church of Miami',
-          address: '5400 NW 22nd Ave, Miami, FL',
-          city: 'Miami',
-          country: 'USA',
-          phone: '+1 305 635 6621',
-          denomination: 'Baptist',
-          source: 'Test Data'
-        },
-        {
-          name: 'Calvary Chapel Miami',
-          address: '14100 Biscayne Blvd, North Miami Beach, FL',
-          city: 'Miami',
-          country: 'USA',
-          phone: '+1 305 895 8050',
-          denomination: 'Calvary Chapel',
-          source: 'Test Data'
-        },
-        {
-          name: 'Miami Vineyard Community Church',
-          address: '2500 SW 75th Ave, Miami, FL',
-          city: 'Miami',
-          country: 'USA',
-          phone: '+1 305 261 0849',
-          denomination: 'Vineyard',
-          source: 'Test Data'
-        }
-      ];
-      console.log('Added test churches for Miami:', allChurches.length);
-    } else {
-      // Default churches for any other location
-      allChurches = [
-        {
-          name: 'Community Christian Church',
-          address: 'Main Street 100',
-          city: extractCity('', location),
-          country: extractCountry('', location),
-          phone: 'Contact for details',
-          denomination: 'Non-denominational',
-          source: 'Test Data'
-        },
-        {
-          name: 'Grace Baptist Church',
-          address: 'Church Avenue 250',
-          city: extractCity('', location),
-          country: extractCountry('', location),
-          phone: 'Contact for details',
-          denomination: 'Baptist',
-          source: 'Test Data'
-        }
-      ];
-      console.log('Added default test churches:', allChurches.length);
+    const apifyApiKey = Deno.env.get('APIFY_API_KEY');
+    if (!apifyApiKey) {
+      throw new Error('Apify API key not configured');
     }
 
+    console.log('APIFY_API_KEY available:', !!apifyApiKey);
+    console.log(`Starting real data collection for: ${location}`);
+    
+    // Determine language and region based on location
+    const { language, region, searchTerms } = getLocationSettings(location);
+    console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
+    
+    // Use Google Places scraper with a reliable actor
+    for (const searchTerm of searchTerms.slice(0, 2)) { // Use first 2 search terms
+      try {
+        console.log(`Running Google Places scraper for: ${searchTerm}...`);
+        
+        const searchQuery = `${searchTerm} ${location}`;
+        console.log(`Search query: ${searchQuery}`);
+        
+        // Use a sync endpoint for simpler handling
+        const response = await fetch(`https://api.apify.com/v2/acts/nwua9Gu5YrADL7ZDj/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queries: [searchQuery],
+            maxItems: 20,
+            language: language,
+            countryCode: region.toUpperCase(),
+            includeImages: false,
+            includeReviews: false
+          })
+        });
+
+        console.log(`API Response Status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log(`Found ${data.length} total results for "${searchTerm}"`);
+          
+          if (data && Array.isArray(data) && data.length > 0) {
+            console.log(`Sample result structure:`, JSON.stringify(data[0], null, 2));
+            
+            const churches = data
+              .filter((place: any) => {
+                const name = (place.name || place.title || '').toLowerCase();
+                const category = (place.category || place.categories || []).toString().toLowerCase();
+                
+                // Multi-language church keywords
+                const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'chapel', 'capilla'];
+                
+                const isChurch = churchKeywords.some(keyword => 
+                  name.includes(keyword) || category.includes(keyword)
+                );
+                
+                if (isChurch) {
+                  console.log(`Found church: ${name} - Category: ${category}`);
+                }
+                return isChurch;
+              })
+              .map((place: any) => ({
+                name: place.name || place.title,
+                address: place.address || place.location?.address,
+                city: extractCity(place.address || place.location?.address, location),
+                country: extractCountry(place.address || place.location?.address, location),
+                phone: place.phone || place.phoneNumber,
+                email: place.email,
+                website: place.website || place.url,
+                denomination: extractDenomination(place.name || place.title, (place.category || []).join(' ')),
+                source: 'Google Places API'
+              }));
+            
+            console.log(`Filtered churches for "${searchTerm}": ${churches.length}`);
+            allChurches.push(...churches);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error(`API error for "${searchTerm}": ${response.status} ${errorText}`);
+        }
+      } catch (error) {
+        console.error(`Error processing "${searchTerm}":`, error);
+      }
+    }
+
+    // Remove duplicates based on name similarity
+    const uniqueChurches = removeDuplicates(allChurches);
+    console.log(`After removing duplicates: ${uniqueChurches.length} churches`);
+    
     // Filter out Catholic churches if requested
-    let filteredChurches = allChurches;
+    let filteredChurches = uniqueChurches;
     if (filterNonCatholic) {
-      filteredChurches = allChurches.filter(church => !isCatholic(church));
+      filteredChurches = uniqueChurches.filter(church => !isCatholic(church));
       console.log(`After filtering Catholics: ${filteredChurches.length} churches`);
     }
 
@@ -201,6 +155,50 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 // Helper functions
+function getLocationSettings(location: string): { language: string; region: string; searchTerms: string[] } {
+  const locationLower = location.toLowerCase();
+  
+  // Determine language and region based on location
+  if (locationLower.includes('spain') || locationLower.includes('españa') || locationLower.includes('madrid') || locationLower.includes('barcelona')) {
+    return {
+      language: 'es',
+      region: 'es',
+      searchTerms: ['iglesias', 'iglesia evangelica', 'iglesia protestante', 'templo', 'congregacion']
+    };
+  } else if (locationLower.includes('france') || locationLower.includes('paris') || locationLower.includes('lyon') || locationLower.includes('marseille')) {
+    return {
+      language: 'fr',
+      region: 'fr',
+      searchTerms: ['églises', 'église protestante', 'église évangélique', 'temple', 'assemblée']
+    };
+  } else if (locationLower.includes('italy') || locationLower.includes('italia') || locationLower.includes('rome') || locationLower.includes('milan')) {
+    return {
+      language: 'it',
+      region: 'it',
+      searchTerms: ['chiese', 'chiesa protestante', 'chiesa evangelica', 'tempio', 'congregazione']
+    };
+  } else if (locationLower.includes('germany') || locationLower.includes('deutschland') || locationLower.includes('berlin') || locationLower.includes('munich')) {
+    return {
+      language: 'de',
+      region: 'de',
+      searchTerms: ['kirchen', 'evangelische kirche', 'protestantische kirche', 'freikirche', 'gemeinde']
+    };
+  } else if (locationLower.includes('portugal') || locationLower.includes('lisbon') || locationLower.includes('porto')) {
+    return {
+      language: 'pt',
+      region: 'pt',
+      searchTerms: ['igrejas', 'igreja protestante', 'igreja evangélica', 'templo', 'congregação']
+    };
+  } else {
+    // Default to English
+    return {
+      language: 'en',
+      region: 'us',
+      searchTerms: ['churches', 'protestant churches', 'evangelical churches', 'baptist churches', 'methodist churches']
+    };
+  }
+}
+
 function extractCity(address: string, location: string): string {
   if (!address) return location.split(',')[0].trim();
   const parts = address.split(',');
@@ -216,6 +214,23 @@ function extractCountry(address: string, location: string): string {
   return parts[parts.length - 1]?.trim() || 'Unknown';
 }
 
+function extractDenomination(name: string, description: string): string {
+  const text = `${name} ${description}`.toLowerCase();
+  
+  if (text.includes('baptist')) return 'Baptist';
+  if (text.includes('methodist')) return 'Methodist';
+  if (text.includes('presbyterian')) return 'Presbyterian';
+  if (text.includes('pentecostal')) return 'Pentecostal';
+  if (text.includes('evangelical')) return 'Evangelical';
+  if (text.includes('lutheran')) return 'Lutheran';
+  if (text.includes('anglican')) return 'Anglican';
+  if (text.includes('reformed')) return 'Reformed';
+  if (text.includes('assemblies of god')) return 'Assemblies of God';
+  if (text.includes('seventh-day adventist')) return 'Seventh-day Adventist';
+  
+  return 'Other Protestant';
+}
+
 function isCatholic(church: DiscoveredChurch): boolean {
   const text = `${church.name} ${church.denomination || ''}`.toLowerCase();
   
@@ -229,6 +244,18 @@ function isCatholic(church: DiscoveredChurch): boolean {
   ];
   
   return catholicKeywords.some(keyword => text.includes(keyword));
+}
+
+function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
+  const seen = new Set<string>();
+  return churches.filter(church => {
+    const key = church.name.toLowerCase().replace(/[^a-z]/g, '');
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 serve(handler);
