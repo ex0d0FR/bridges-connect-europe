@@ -72,6 +72,33 @@ export default function Campaigns() {
     }
   }
 
+  const handleLaunchCampaign = async (campaignId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('campaign-management', {
+        body: {
+          action: 'start',
+          campaignId: campaignId
+        }
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Success",
+        description: "Campaign launched successfully",
+      })
+
+      fetchCampaigns()
+    } catch (error) {
+      console.error('Error launching campaign:', error)
+      toast({
+        title: "Error",
+        description: "Failed to launch campaign",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -166,7 +193,11 @@ export default function Campaigns() {
                       <BarChart3 className="h-4 w-4 mr-2" />
                       Analytics
                     </Button>
-                    <Button size="sm" disabled={campaign.status !== 'draft'}>
+                    <Button 
+                      size="sm" 
+                      disabled={campaign.status !== 'draft'}
+                      onClick={() => handleLaunchCampaign(campaign.id)}
+                    >
                       <Send className="h-4 w-4 mr-2" />
                       Launch
                     </Button>

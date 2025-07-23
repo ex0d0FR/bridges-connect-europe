@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Plus, Mail, MessageSquare, Globe, MessageCircle, Edit, Trash2 } from "lucide-react"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { CreateTemplateDialog } from "@/components/CreateTemplateDialog"
+import { EditTemplateDialog } from "@/components/EditTemplateDialog"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
@@ -21,6 +22,8 @@ export default function Templates() {
   const { t } = useLanguage()
   const { toast } = useToast()
   const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -84,6 +87,11 @@ export default function Templates() {
       default:
         return <MessageSquare className="h-4 w-4" />
     }
+  }
+
+  const handleEditTemplate = (template: Template) => {
+    setSelectedTemplate(template)
+    setShowEditDialog(true)
   }
 
   return (
@@ -212,7 +220,7 @@ export default function Templates() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleEditTemplate(template)}>
                       <Edit className="h-4 w-4" />
                     </Button>
                     <Button 
@@ -234,6 +242,13 @@ export default function Templates() {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onTemplateCreated={fetchTemplates}
+      />
+      
+      <EditTemplateDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onTemplateUpdated={fetchTemplates}
+        template={selectedTemplate}
       />
     </div>
   )
