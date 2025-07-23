@@ -55,35 +55,37 @@ const handler = async (req: Request): Promise<Response> => {
         const searchQuery = `${searchTerm} ${location}`;
         console.log(`Search query: ${searchQuery}`);
         
-        // Use a reliable Google Maps scraper
-        const response = await fetch(`https://api.apify.com/v2/acts/drobnikj/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+        // Use a working Google Places scraper
+        const response = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            startUrls: [{ url: `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}` }],
-            maxCrawledPlaces: 30,
+            searchStringsArray: [searchQuery],
+            maxCrawledPlacesPerSearch: 20,
             language: language,
-            countryCode: region.toUpperCase(),
-            includeHistogram: false,
-            includeOpeningHours: true,
-            includeReviews: false,
-            maxReviews: 0,
-            maxImages: 1,
-            exportPlaceUrls: false,
-            additionalInfo: true, // This will give us more detailed info
-            includeDetailPageHtml: false,
+            countryCode: region,
+            allPlacesNoSearchAction: 'error',
+            maxAutomaticZoomOut: 0,
+            cachePlaces: false,
             reviewsSort: 'newest',
-            oneReviewPerRow: false,
+            scrapeReviewerName: false,
+            scrapeReviewerId: false,
+            scrapeReviewerUrl: false,
             scrapeReviewId: false,
             scrapeReviewUrl: false,
-            scrapeReviewerId: false,
-            scrapeReviewerName: false,
-            scrapeReviewerUrl: false,
             scrapeReviewText: false,
             scrapeReviewPublishedAtDate: false,
             scrapeReviewPublishedAtDatetime: false,
             scrapeReviewResponseFromOwnerText: false,
-            reviewsTranslation: 'originalAndTranslated'
+            scrapeDirections: false,
+            reviewsFilterString: '',
+            reviewsTranslation: 'originalAndTranslated',
+            includeHistogram: false,
+            includeOpeningHours: true,
+            includePeopleAlsoSearch: false,
+            exportPlaceUrls: false,
+            maxReviews: 0,
+            maxImages: 1
           })
         });
 
