@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCreateChurch } from "@/hooks/useChurches";
 import { Search, MapPin, Globe, Phone, Mail, Plus, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface DiscoveredChurch {
   name: string;
@@ -32,6 +33,7 @@ export default function ChurchDiscovery() {
   const [filterCatholic, setFilterCatholic] = useState(true);
   const { toast } = useToast();
   const createChurch = useCreateChurch();
+  const { t } = useLanguage();
 
   const handleScan = async () => {
     if (!location.trim()) {
@@ -154,9 +156,9 @@ export default function ChurchDiscovery() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Discover Churches</h1>
+        <h1 className="text-3xl font-bold">{t('discovery.title')}</h1>
         <p className="text-muted-foreground">
-          Search for churches online and add them to your database
+          {t('discovery.searchInstructions')}
         </p>
       </div>
 
@@ -164,16 +166,16 @@ export default function ChurchDiscovery() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Search className="h-5 w-5" />
-            Church Discovery
+            {t('discovery.searchForChurches')}
           </CardTitle>
           <CardDescription>
-            Enter a location to discover churches using multiple online sources
+            {t('discovery.searchInstructions')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input
-              placeholder="Enter city, region, or country (e.g., Paris, France)"
+              placeholder={t('discovery.location')}
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               disabled={isScanning}
@@ -187,12 +189,12 @@ export default function ChurchDiscovery() {
               {isScanning ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Scanning...
+                  {t('discovery.searching')}
                 </>
               ) : (
                 <>
                   <Search className="h-4 w-4" />
-                  Discover
+                  {t('discovery.searchButton')}
                 </>
               )}
             </Button>
@@ -227,9 +229,9 @@ export default function ChurchDiscovery() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Discovered Churches</CardTitle>
+                <CardTitle>{t('discovery.results')}</CardTitle>
                 <CardDescription>
-                  {discoveredChurches.length} churches found • {selectedChurches.size} selected
+                  {discoveredChurches.length} {t('discovery.churchesFound')} • {selectedChurches.size} {t('discovery.selected')}
                 </CardDescription>
               </div>
               <div className="flex gap-2">
@@ -239,7 +241,7 @@ export default function ChurchDiscovery() {
                   disabled={discoveredChurches.length === 0 || selectedChurches.size === discoveredChurches.length}
                   className="flex items-center gap-2"
                 >
-                  Select All
+                  {t('discovery.selectAll')}
                 </Button>
                 <Button 
                   onClick={saveSelectedChurches}
@@ -251,7 +253,7 @@ export default function ChurchDiscovery() {
                   ) : (
                     <Plus className="h-4 w-4" />
                   )}
-                  Save Selected ({selectedChurches.size})
+                  {t('discovery.saveSelected')} ({selectedChurches.size})
                 </Button>
               </div>
             </div>

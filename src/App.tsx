@@ -10,6 +10,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageProvider, useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import Dashboard from "./pages/Dashboard";
 import Churches from "./pages/Churches";
 import ChurchDiscovery from "./pages/ChurchDiscovery";
@@ -27,6 +29,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { signOut } = useAuth();
+  const { t } = useLanguage();
 
   const handleSignOut = async () => {
     await signOut();
@@ -43,10 +46,11 @@ const AppContent = () => {
               <h2 className="font-semibold">Missionary Bridges Outreach</h2>
             </div>
             <div className="flex items-center gap-2">
+              <LanguageSwitcher />
               <ThemeToggle />
               <Button variant="outline" size="sm" onClick={handleSignOut}>
                 <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
+                {t('auth.signOut')}
               </Button>
             </div>
           </header>
@@ -73,11 +77,12 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="system" storageKey="missionary-bridges-theme">
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AuthProvider>
+        <LanguageProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AuthProvider>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/*" element={
@@ -86,9 +91,10 @@ const App = () => {
                   </ProtectedRoute>
                 } />
               </Routes>
-            </AuthProvider>
-          </BrowserRouter>
-        </TooltipProvider>
+              </AuthProvider>
+            </BrowserRouter>
+          </TooltipProvider>
+        </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

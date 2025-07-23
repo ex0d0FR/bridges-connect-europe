@@ -25,49 +25,52 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router-dom"
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Churches",
-    url: "/churches",
-    icon: Church,
-  },
-  {
-    title: "Discover Churches",
-    url: "/discover",
-    icon: Search,
-  },
-  {
-    title: "Campaigns",
-    url: "/campaigns", 
-    icon: Mail,
-  },
-  {
-    title: "Templates",
-    url: "/templates",
-    icon: FileText,
-  },
-  {
-    title: "Analytics",
-    url: "/analytics",
-    icon: BarChart3,
-  },
-]
-
-const bottomMenuItems = [
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
-]
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export function AppSidebar() {
+  const { t } = useLanguage();
+
+  const menuItems = [
+    {
+      title: t('navigation.dashboard'),
+      url: "/",
+      icon: Home,
+    },
+    {
+      title: t('navigation.churches'),
+      url: "/churches",
+      icon: Church,
+    },
+    {
+      title: t('navigation.discovery'),
+      url: "/discover",
+      icon: Search,
+    },
+    {
+      title: t('navigation.campaigns'),
+      url: "/campaigns", 
+      icon: Mail,
+    },
+    {
+      title: t('navigation.templates'),
+      url: "/templates",
+      icon: FileText,
+    },
+    {
+      title: t('navigation.analytics'),
+      url: "/analytics",
+      icon: BarChart3,
+    },
+  ];
+
+  const bottomMenuItems = [
+    {
+      title: t('navigation.settings'),
+      url: "/settings",
+      icon: Settings,
+    },
+  ];
+
   return (
     <Sidebar>
       <SidebarHeader className="border-b p-4">

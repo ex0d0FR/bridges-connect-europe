@@ -2,21 +2,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Church, Mail, Users, TrendingUp, Plus, Send } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 export default function Dashboard() {
+  const { t } = useLanguage();
+  
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t('navigation.dashboard')}</h1>
           <p className="text-muted-foreground">
-            Welcome to your outreach automation dashboard
+            {t('dashboard.welcome')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button>
             <Plus className="h-4 w-4 mr-2" />
-            New Campaign
+            {t('campaigns.newCampaign')}
           </Button>
         </div>
       </div>
@@ -25,52 +28,52 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Churches</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.totalChurches')}</CardTitle>
             <Church className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              Churches in database
+              {t('dashboard.totalChurches')}
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.activeCampaigns')}</CardTitle>
             <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              Running campaigns
+              {t('dashboard.activeCampaigns')}
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Messages Sent</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.totalContacts')}</CardTitle>
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              Total messages sent
+              {t('dashboard.totalContacts')}
             </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Response Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('dashboard.conversionRate')}</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">0%</div>
             <p className="text-xs text-muted-foreground">
-              Average response rate
+              {t('dashboard.conversionRate')}
             </p>
           </CardContent>
         </Card>
@@ -80,37 +83,37 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Recent Campaigns</CardTitle>
+            <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
             <CardDescription>
-              Your latest outreach campaigns
+              {t('dashboard.recentActivity')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-center py-6 text-muted-foreground">
-              No campaigns yet. Create your first campaign to get started.
+              {t('dashboard.noRecentActivity')}
             </div>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle>{t('dashboard.quickActions')}</CardTitle>
             <CardDescription>
-              Common tasks to get you started
+              {t('dashboard.getStarted')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <Button variant="outline" className="w-full justify-start">
               <Church className="h-4 w-4 mr-2" />
-              Import Churches
+              {t('dashboard.addNewChurch')}
             </Button>
             <Button variant="outline" className="w-full justify-start">
               <Mail className="h-4 w-4 mr-2" />
-              Create Email Template
+              {t('dashboard.createCampaign')}
             </Button>
             <Button variant="outline" className="w-full justify-start">
               <Send className="h-4 w-4 mr-2" />
-              Send Test Message
+              {t('dashboard.viewAnalytics')}
             </Button>
           </CardContent>
         </Card>
