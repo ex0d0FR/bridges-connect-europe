@@ -12,6 +12,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import Dashboard from "./pages/Dashboard";
 import Churches from "./pages/Churches";
+import ChurchDiscovery from "./pages/ChurchDiscovery";
 import Campaigns from "./pages/Campaigns";
 import Templates from "./pages/Templates";
 import Analytics from "./pages/Analytics";
@@ -54,6 +55,7 @@ const AppContent = () => {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/churches" element={<Churches />} />
+              <Route path="/discover" element={<ChurchDiscovery />} />
               <Route path="/campaigns" element={<Campaigns />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/analytics" element={<Analytics />} />

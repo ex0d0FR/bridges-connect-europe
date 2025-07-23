@@ -9,6 +9,7 @@ import {
   BarChart3,
   Users,
   FileText,
+  Search,
 } from "lucide-react"
 
 import {
@@ -35,6 +36,11 @@ const menuItems = [
     title: "Churches",
     url: "/churches",
     icon: Church,
+  },
+  {
+    title: "Discover Churches",
+    url: "/discover",
+    icon: Search,
   },
   {
     title: "Campaigns",
