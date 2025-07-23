@@ -45,9 +45,14 @@ const handler = async (req: Request): Promise<Response> => {
       .select('*')
       .eq('id', campaignId)
       .eq('created_by', user.id)
-      .single();
+      .maybeSingle();
 
-    if (campaignError || !campaign) {
+    if (campaignError) {
+      console.error('Campaign query error:', campaignError);
+      throw new Error(`Campaign query failed: ${campaignError.message}`);
+    }
+
+    if (!campaign) {
       throw new Error('Campaign not found or access denied');
     }
 
