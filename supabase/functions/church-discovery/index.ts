@@ -335,18 +335,54 @@ function extractDenomination(name: string, description: string): string {
 }
 
 function isCatholic(church: DiscoveredChurch): boolean {
-  const text = `${church.name} ${church.denomination || ''}`.toLowerCase();
+  const text = `${church.name} ${church.denomination || ''} ${church.address || ''}`.toLowerCase();
   
-  // Multi-language Catholic keywords
+  // Multi-language Catholic keywords (enhanced detection)
   const catholicKeywords = [
+    // Direct Catholic terms
     'catholic', 'católica', 'catholique', 'cattolica', 'katholische', 'católica',
-    'notre dame', 'san ', 'santa ', 'saint ', 'santo ', 'sta. ', 'st. ',
+    'roman catholic', 'católica romana', 'catholique romaine',
+    
+    // Saint prefixes (very strong indicator)
+    'notre dame', 'our lady', 'nuestra señora', 'madonna',
+    'san ', 'santa ', 'saint ', 'santo ', 'sta. ', 'st. ', 'ste. ',
+    'são ', 'são ', 'sankt ', 'holy ',
+    
+    // Catholic institution terms
     'parish', 'parroquia', 'paroisse', 'parrocchia', 'pfarrei', 'paróquia',
     'basilica', 'basílica', 'basilique', 'basilica', 'basilika',
-    'cathedral', 'catedral', 'cathédrale', 'cattedrale', 'kathedrale'
+    'cathedral', 'catedral', 'cathédrale', 'cattedrale', 'kathedrale',
+    'abbey', 'abadía', 'abbaye', 'abbazia', 'abtei',
+    'monastery', 'monasterio', 'monastère', 'monastero', 'kloster',
+    'convent', 'convento', 'couvent', 'convento', 'kloster',
+    
+    // Catholic specific terms
+    'diocese', 'archdiocese', 'diócesis', 'archidiócesis', 'diocèse', 'archidiocèse',
+    'mass', 'misa', 'messe', 'messa', 'messe',
+    'papal', 'pontifical', 'vatican', 'vaticano',
+    
+    // Catholic orders and movements
+    'jesuits', 'jesuitas', 'jésuites', 'gesuiti', 'jesuiten',
+    'franciscan', 'franciscano', 'franciscain', 'francescano', 'franziskaner',
+    'dominican', 'dominico', 'dominicain', 'domenicano', 'dominikaner',
+    'benedictine', 'benedictino', 'bénédictin', 'benedettino', 'benediktiner',
+    'opus dei', 'carmelite', 'carmelita', 'carmélite', 'carmelitano'
   ];
   
-  return catholicKeywords.some(keyword => text.includes(keyword));
+  // Check for strong Catholic indicators
+  const hasStrongCatholicIndicator = catholicKeywords.some(keyword => {
+    if (keyword.endsWith(' ')) {
+      // For keywords ending with space, check if they appear at word boundaries
+      return text.includes(keyword) || text.includes(keyword.trim() + '-');
+    }
+    return text.includes(keyword);
+  });
+  
+  // Additional check for saint names patterns
+  const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+[a-z]/i;
+  const hasSaintPattern = saintPattern.test(church.name);
+  
+  return hasStrongCatholicIndicator || hasSaintPattern;
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {

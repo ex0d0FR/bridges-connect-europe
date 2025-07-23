@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateChurch } from "@/hooks/useChurches";
@@ -27,6 +29,7 @@ export default function ChurchDiscovery() {
   const [discoveredChurches, setDiscoveredChurches] = useState<DiscoveredChurch[]>([]);
   const [progress, setProgress] = useState(0);
   const [selectedChurches, setSelectedChurches] = useState<Set<number>>(new Set());
+  const [filterCatholic, setFilterCatholic] = useState(true);
   const { toast } = useToast();
   const createChurch = useCreateChurch();
 
@@ -54,7 +57,7 @@ export default function ChurchDiscovery() {
       const { data, error } = await supabase.functions.invoke('church-discovery', {
         body: { 
           location,
-          filterNonCatholic: true 
+          filterNonCatholic: filterCatholic 
         }
       });
 
@@ -67,7 +70,7 @@ export default function ChurchDiscovery() {
         setDiscoveredChurches(data.churches);
         toast({
           title: "Churches Discovered",
-          description: `Found ${data.churches.length} non-Catholic churches in ${location}`,
+          description: `Found ${data.churches.length} ${filterCatholic ? 'non-Catholic ' : ''}churches in ${location}`,
         });
       } else {
         toast({
@@ -148,7 +151,7 @@ export default function ChurchDiscovery() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold">Discover Churches</h1>
         <p className="text-muted-foreground">
-          Search for non-Catholic churches online and add them to your database
+          Search for churches online and add them to your database
         </p>
       </div>
 
@@ -188,6 +191,18 @@ export default function ChurchDiscovery() {
                 </>
               )}
             </Button>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="filter-catholic"
+              checked={filterCatholic}
+              onCheckedChange={setFilterCatholic}
+              disabled={isScanning}
+            />
+            <Label htmlFor="filter-catholic" className="text-sm">
+              Exclude Catholic churches from results
+            </Label>
           </div>
 
           {isScanning && (
