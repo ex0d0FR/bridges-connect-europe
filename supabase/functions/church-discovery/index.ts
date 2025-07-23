@@ -58,23 +58,33 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (googleMapsResponse.ok) {
         const googleData = await googleMapsResponse.json();
+        console.log(`Google Maps raw response:`, JSON.stringify(googleData, null, 2));
         console.log(`Google Maps found ${googleData.length} results`);
         
-        const googleChurches = googleData
-          .filter((place: any) => place.title && place.title.toLowerCase().includes('church'))
-          .map((place: any) => ({
-            name: place.title,
-            address: place.address,
-            city: extractCity(place.address, location),
-            country: extractCountry(place.address, location),
-            phone: place.phoneNumber,
-            email: place.email,
-            website: place.website,
-            denomination: extractDenomination(place.title, place.categoryName),
-            source: 'Google Maps'
-          }));
-        
-        allChurches.push(...googleChurches);
+        if (googleData && Array.isArray(googleData) && googleData.length > 0) {
+          const googleChurches = googleData
+            .filter((place: any) => {
+              const hasChurchInTitle = place.title && place.title.toLowerCase().includes('church');
+              const hasChurchInCategory = place.categoryName && place.categoryName.toLowerCase().includes('church');
+              return hasChurchInTitle || hasChurchInCategory;
+            })
+            .map((place: any) => ({
+              name: place.title || place.name,
+              address: place.address,
+              city: extractCity(place.address, location),
+              country: extractCountry(place.address, location),
+              phone: place.phoneNumber || place.phone,
+              email: place.email,
+              website: place.website || place.url,
+              denomination: extractDenomination(place.title || place.name, place.categoryName || ''),
+              source: 'Google Maps'
+            }));
+          
+          console.log(`Filtered Google churches: ${googleChurches.length}`);
+          allChurches.push(...googleChurches);
+        }
+      } else {
+        console.error('Google Maps API error:', googleMapsResponse.status, await googleMapsResponse.text());
       }
     } catch (error) {
       console.error('Google Maps scraper error:', error);
