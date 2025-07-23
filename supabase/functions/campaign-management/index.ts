@@ -123,7 +123,8 @@ const handler = async (req: Request): Promise<Response> => {
         throw new Error('No churches assigned to this campaign. Please add churches before launching.');
       }
 
-      // Get campaign template for message content
+      // For now, we'll use a default template since campaigns don't have template_id yet
+      // This should be improved to link campaigns to specific templates
       const { data: templates, error: templateError } = await supabase
         .from('templates')
         .select('*')
@@ -132,7 +133,7 @@ const handler = async (req: Request): Promise<Response> => {
 
       if (templateError || !templates?.length) {
         console.error('Error fetching template:', templateError);
-        throw new Error('No template found for this campaign');
+        throw new Error('No template found. Please create a template first before launching a campaign.');
       }
 
       const template = templates[0];
