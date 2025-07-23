@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.send-sms]
 verify_jwt = true
 
+[functions.send-whatsapp]
+verify_jwt = true
+
 [functions.campaign-management]
 verify_jwt = true
 
