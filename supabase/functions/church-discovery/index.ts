@@ -48,7 +48,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const searchTerm of searchTerms) {
       try {
         console.log(`Running Google Maps scraper for: ${searchTerm}...`);
-        const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass~google-maps-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+        const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -103,7 +103,7 @@ const handler = async (req: Request): Promise<Response> => {
     // 2. Web Content Crawler for church directories
     try {
       console.log('Running web crawler for church directories...');
-      const crawlerResponse = await fetch(`https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+      const crawlerResponse = await fetch(`https://api.apify.com/v2/acts/apify/web-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,7 +177,7 @@ const handler = async (req: Request): Promise<Response> => {
     // 3. Social Media Scraper (for church Facebook pages)
     try {
       console.log('Running social media scraper...');
-      const socialResponse = await fetch(`https://api.apify.com/v2/acts/apify~facebook-pages-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+      const socialResponse = await fetch(`https://api.apify.com/v2/acts/apify/facebook-pages-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
