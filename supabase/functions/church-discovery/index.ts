@@ -55,37 +55,20 @@ const handler = async (req: Request): Promise<Response> => {
         const searchQuery = `${searchTerm} ${location}`;
         console.log(`Search query: ${searchQuery}`);
         
-        // Use a working Google Places scraper
-        const response = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+        // Use the most popular Google Maps scraper
+        const response = await fetch(`https://api.apify.com/v2/acts/omerace/google-maps-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            searchStringsArray: [searchQuery],
-            maxCrawledPlacesPerSearch: 20,
+            searchQuery: searchQuery,
+            maxItems: 20,
             language: language,
-            countryCode: region,
-            allPlacesNoSearchAction: 'error',
-            maxAutomaticZoomOut: 0,
-            cachePlaces: false,
-            reviewsSort: 'newest',
-            scrapeReviewerName: false,
-            scrapeReviewerId: false,
-            scrapeReviewerUrl: false,
-            scrapeReviewId: false,
-            scrapeReviewUrl: false,
-            scrapeReviewText: false,
-            scrapeReviewPublishedAtDate: false,
-            scrapeReviewPublishedAtDatetime: false,
-            scrapeReviewResponseFromOwnerText: false,
-            scrapeDirections: false,
-            reviewsFilterString: '',
-            reviewsTranslation: 'originalAndTranslated',
-            includeHistogram: false,
+            countryCode: region.toUpperCase(),
+            includeImages: false,
+            includeReviews: false,
             includeOpeningHours: true,
-            includePeopleAlsoSearch: false,
-            exportPlaceUrls: false,
-            maxReviews: 0,
-            maxImages: 1
+            includeContactInfo: true,
+            maxReviews: 0
           })
         });
 
