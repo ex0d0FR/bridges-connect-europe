@@ -71,9 +71,16 @@ export const useCreateChurch = () => {
 
   return useMutation({
     mutationFn: async (churchData: CreateChurchData) => {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('You must be logged in to add churches');
+      }
+
       const { data, error } = await supabase
         .from('churches')
-        .insert([churchData])
+        .insert([{ ...churchData, created_by: user.id }])
         .select()
         .single();
 
