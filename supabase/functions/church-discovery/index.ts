@@ -382,8 +382,8 @@ function isCatholic(church: DiscoveredChurch): boolean {
   const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+[a-z]/i;
   const hasSaintPattern = saintPattern.test(church.name);
   
-  // Protestant indicators that override saint names
-  const protestantIndicators = /\b(protestant|évangélique|evangelical|baptist|methodist|lutheran|presbyterian|pentecostal|adventist|reformed|assemblies|assembly)\b/i;
+  // Protestant indicators that override saint names (multi-language)
+  const protestantIndicators = /\b(protestant|évangélique|evangelica|evangelico|evangelical|evangélica|baptiste|baptist|bautista|methodist|metodista|méthodiste|lutheran|luterana|luthérien|presbyterian|presbiteriana|presbytérien|pentecostal|pentecôtiste|adventist|adventista|adventiste|reformed|reformada|réformée|assemblies|assembly|assemblée|asamblea|temple|iglesia protestante|église protestante|chiesa protestante|igreja protestante)\b/i;
   const hasProtestantIndicator = protestantIndicators.test(text);
   
   // Only consider it Catholic if it has Catholic indicators and no Protestant indicators
