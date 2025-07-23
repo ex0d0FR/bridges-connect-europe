@@ -44,11 +44,13 @@ const handler = async (req: Request): Promise<Response> => {
     
     let allChurches: DiscoveredChurch[] = [];
 
-    // 1. Google Maps Places Scraper with multiple search terms
+    // 1. Google Maps Places Scraper - using correct actor name
     for (const searchTerm of searchTerms.slice(0, 1)) { // Test with just one term first
       try {
         console.log(`Running Google Maps scraper for: ${searchTerm}...`);
-        const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+        
+        // Start the actor run first
+        const runResponse = await fetch(`https://api.apify.com/v2/acts/drobnikj~crawler-google-places/runs?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -59,175 +61,96 @@ const handler = async (req: Request): Promise<Response> => {
             includeHistogram: false,
             includeOpeningHours: false,
             includeReviews: false,
-            reviewsSort: 'newest',
             maxReviews: 0,
-            maxImages: 0,
-            exportPlaceUrls: false
+            maxImages: 0
           })
         });
 
-        console.log(`Google Maps API Response Status: ${googleMapsResponse.status}`);
+        if (!runResponse.ok) {
+          const errorText = await runResponse.text();
+          console.error(`Failed to start Google Maps actor: ${runResponse.status} ${errorText}`);
+          continue;
+        }
+
+        const runData = await runResponse.json();
+        const runId = runData.data.id;
+        console.log(`Started Google Maps actor run: ${runId}`);
+
+        // Wait for run to complete and get results
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds timeout
         
-        if (googleMapsResponse.ok) {
-          const googleData = await googleMapsResponse.json();
-          console.log(`Google Maps found ${googleData.length} total results`);
-          console.log(`Sample result structure:`, JSON.stringify(googleData[0], null, 2));
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
           
-          if (googleData && Array.isArray(googleData) && googleData.length > 0) {
-            const googleChurches = googleData
-              .filter((place: any) => {
-                const title = (place.title || place.name || '').toLowerCase();
-                const category = (place.categories || place.categoryName || place.category || []).toString().toLowerCase();
-                
-                // Multi-language church keywords
-                const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'religious'];
-                
-                const isChurch = churchKeywords.some(keyword => 
-                  title.includes(keyword) || category.includes(keyword)
-                );
-                
-                if (isChurch) {
-                  console.log(`Found potential church: ${title} - Categories: ${category}`);
-                }
-                return isChurch;
-              })
-              .map((place: any) => ({
-                name: place.title || place.name,
-                address: place.address || place.location?.address,
-                city: extractCity(place.address || place.location?.address, location),
-                country: extractCountry(place.address || place.location?.address, location),
-                phone: place.phoneNumber || place.phone,
-                email: place.email,
-                website: place.website || place.url,
-                denomination: extractDenomination(place.title || place.name, (place.categories || []).join(' ')),
-                source: 'Google Maps'
-              }));
+          const statusResponse = await fetch(`https://api.apify.com/v2/acts/drobnikj~crawler-google-places/runs/${runId}?token=${apifyApiKey}`);
+          const statusData = await statusResponse.json();
+          
+          if (statusData.data.status === 'SUCCEEDED') {
+            // Get the dataset items
+            const datasetResponse = await fetch(`https://api.apify.com/v2/datasets/${statusData.data.defaultDatasetId}/items?token=${apifyApiKey}`);
+            const googleData = await datasetResponse.json();
             
-            console.log(`Filtered Google churches: ${googleChurches.length}`);
-            allChurches.push(...googleChurches);
-          } else {
-            console.log('No valid data received from Google Maps API');
+            console.log(`Google Maps found ${googleData.length} total results`);
+            if (googleData.length > 0) {
+              console.log(`Sample result:`, JSON.stringify(googleData[0], null, 2));
+            }
+
+            
+            if (googleData && Array.isArray(googleData) && googleData.length > 0) {
+              const googleChurches = googleData
+                .filter((place: any) => {
+                  const title = (place.title || place.name || '').toLowerCase();
+                  const category = (place.categories || place.categoryName || place.category || []).toString().toLowerCase();
+                  
+                  // Multi-language church keywords
+                  const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'religious'];
+                  
+                  const isChurch = churchKeywords.some(keyword => 
+                    title.includes(keyword) || category.includes(keyword)
+                  );
+                  
+                  if (isChurch) {
+                    console.log(`Found potential church: ${title} - Categories: ${category}`);
+                  }
+                  return isChurch;
+                })
+                .map((place: any) => ({
+                  name: place.title || place.name,
+                  address: place.address || place.location?.address,
+                  city: extractCity(place.address || place.location?.address, location),
+                  country: extractCountry(place.address || place.location?.address, location),
+                  phone: place.phoneNumber || place.phone,
+                  email: place.email,
+                  website: place.website || place.url,
+                  denomination: extractDenomination(place.title || place.name, (place.categories || []).join(' ')),
+                  source: 'Google Maps'
+                }));
+              
+              console.log(`Filtered Google churches: ${googleChurches.length}`);
+              allChurches.push(...googleChurches);
+            } else {
+              console.log('No valid data received from Google Maps API');
+            }
+            break; // Exit the polling loop
+          } else if (statusData.data.status === 'FAILED') {
+            console.error('Google Maps actor run failed:', statusData.data.statusMessage);
+            break;
           }
-        } else {
-          const errorText = await googleMapsResponse.text();
-          console.error(`Google Maps API error: ${googleMapsResponse.status} ${errorText}`);
+          
+          attempts++;
+        }
+        
+        if (attempts >= maxAttempts) {
+          console.error('Google Maps actor run timed out');
         }
       } catch (error) {
         console.error(`Google Maps scraper error for ${searchTerm}:`, error);
       }
     }
 
-    // 2. Web Content Crawler for church directories
-    try {
-      console.log('Running web crawler for church directories...');
-      const crawlerResponse = await fetch(`https://api.apify.com/v2/acts/apify/web-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls: [
-            { url: `https://www.google.com/search?q=church+directory+${encodeURIComponent(location)}` },
-            { url: `https://www.google.com/search?q=protestant+churches+${encodeURIComponent(location)}` },
-            { url: `https://www.google.com/search?q=evangelical+churches+${encodeURIComponent(location)}` }
-          ],
-          maxRequestsPerCrawl: 20,
-          pageFunction: `
-            async function pageFunction(context) {
-              const { request, page } = context;
-              
-              // Extract church information from various directory sites
-              const churches = [];
-              
-              // Look for church listings
-              const churchElements = await page.$$eval('div, article, section', elements => {
-                return elements
-                  .filter(el => {
-                    const text = el.textContent || '';
-                    return text.includes('Church') || text.includes('church');
-                  })
-                  .slice(0, 10)
-                  .map(el => {
-                    const text = el.textContent || '';
-                    const nameMatch = text.match(/([A-Z][\\w\\s]+Church[\\w\\s]*)/);
-                    if (nameMatch) {
-                      return {
-                        name: nameMatch[1].trim(),
-                        text: text.substring(0, 500)
-                      };
-                    }
-                    return null;
-                  })
-                  .filter(Boolean);
-              });
-              
-              return { churches: churchElements };
-            }
-          `
-        })
-      });
-
-      if (crawlerResponse.ok) {
-        const crawlerData = await crawlerResponse.json();
-        console.log(`Web crawler found ${crawlerData.length} results`);
-        
-        for (const result of crawlerData) {
-          if (result.churches) {
-            const webChurches = result.churches.map((church: any) => ({
-              name: church.name,
-              address: extractAddress(church.text),
-              city: extractCity(church.text, location),
-              country: extractCountry('', location),
-              phone: extractPhone(church.text),
-              email: extractEmail(church.text),
-              website: extractWebsite(church.text),
-              denomination: extractDenomination(church.name, church.text),
-              source: 'Web Directory'
-            }));
-            
-            allChurches.push(...webChurches);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Web crawler error:', error);
-    }
-
-    // 3. Social Media Scraper (for church Facebook pages)
-    try {
-      console.log('Running social media scraper...');
-      const socialResponse = await fetch(`https://api.apify.com/v2/acts/apify/facebook-pages-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls: [
-            `https://www.facebook.com/search/pages/?q=church%20${encodeURIComponent(location)}`
-          ],
-          maxItems: 30
-        })
-      });
-
-      if (socialResponse.ok) {
-        const socialData = await socialResponse.json();
-        console.log(`Social media scraper found ${socialData.length} results`);
-        
-        const socialChurches = socialData
-          .filter((page: any) => page.name && page.name.toLowerCase().includes('church'))
-          .map((page: any) => ({
-            name: page.name,
-            address: page.address,
-            city: extractCity(page.address || '', location),
-            country: extractCountry(page.address || '', location),
-            phone: page.phone,
-            email: page.email,
-            website: page.website,
-            denomination: extractDenomination(page.name, page.about || ''),
-            source: 'Facebook'
-          }));
-        
-        allChurches.push(...socialChurches);
-      }
-    } catch (error) {
-      console.error('Social media scraper error:', error);
-    }
+    // Skip additional scrapers for now to focus on getting Google Maps working
+    console.log('Skipping additional scrapers for testing - focusing on Google Maps only');
 
     // Remove duplicates based on name similarity
     const uniqueChurches = removeDuplicates(allChurches);
