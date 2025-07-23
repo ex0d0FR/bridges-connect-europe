@@ -292,11 +292,16 @@ function extractAddress(text: string): string | undefined {
 
 function isCatholic(church: DiscoveredChurch): boolean {
   const text = `${church.name} ${church.denomination || ''}`.toLowerCase();
-  return text.includes('catholic') || 
+  console.log(`Checking if Catholic: "${church.name}" - text: "${text}"`);
+  
+  const isCatholicResult = text.includes('catholic') || 
          text.includes('notre dame') || 
-         text.includes('st.') || 
-         text.includes('saint') ||
-         text.includes('parish');
+         text.includes('parish') ||
+         (text.includes('st.') && text.includes('catholic')) ||
+         (text.includes('saint') && text.includes('catholic'));
+  
+  console.log(`Is Catholic: ${isCatholicResult}`);
+  return isCatholicResult;
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
