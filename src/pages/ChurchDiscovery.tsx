@@ -101,6 +101,11 @@ export default function ChurchDiscovery() {
     setSelectedChurches(newSelected);
   };
 
+  const selectAllChurches = () => {
+    const allIndices = new Set(discoveredChurches.map((_, index) => index));
+    setSelectedChurches(allIndices);
+  };
+
   const saveSelectedChurches = async () => {
     if (selectedChurches.size === 0) {
       toast({
@@ -227,18 +232,28 @@ export default function ChurchDiscovery() {
                   {discoveredChurches.length} churches found • {selectedChurches.size} selected
                 </CardDescription>
               </div>
-              <Button 
-                onClick={saveSelectedChurches}
-                disabled={selectedChurches.size === 0 || createChurch.isPending}
-                className="flex items-center gap-2"
-              >
-                {createChurch.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                Save Selected ({selectedChurches.size})
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={selectAllChurches}
+                  variant="outline"
+                  disabled={discoveredChurches.length === 0 || selectedChurches.size === discoveredChurches.length}
+                  className="flex items-center gap-2"
+                >
+                  Select All
+                </Button>
+                <Button 
+                  onClick={saveSelectedChurches}
+                  disabled={selectedChurches.size === 0 || createChurch.isPending}
+                  className="flex items-center gap-2"
+                >
+                  {createChurch.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Save Selected ({selectedChurches.size})
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
