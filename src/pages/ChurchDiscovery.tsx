@@ -51,7 +51,7 @@ export default function ChurchDiscovery() {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const { data, error } = await supabase.functions.invoke('church-discovery-apify', {
+      const { data, error } = await supabase.functions.invoke('church-discovery', {
         body: { 
           location,
           filterNonCatholic: true 
