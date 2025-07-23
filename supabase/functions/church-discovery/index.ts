@@ -38,23 +38,28 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Starting church discovery for location: ${location}`);
     
+    // Determine language and region based on location
+    const { language, region, searchTerms } = getLocationSettings(location);
+    console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
+    
     let allChurches: DiscoveredChurch[] = [];
 
-    // 1. Google Maps Places Scraper
-    try {
-      console.log('Running Google Maps scraper...');
-      const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass~google-maps-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queries: [`churches in ${location}`],
-          maxItems: 50,
-          language: 'en',
-          region: 'us',
-          extractEmails: true,
-          extractWebsites: true,
-        })
-      });
+    // 1. Google Maps Places Scraper with multiple search terms
+    for (const searchTerm of searchTerms) {
+      try {
+        console.log(`Running Google Maps scraper for: ${searchTerm}...`);
+        const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass~google-maps-scraper/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queries: [`${searchTerm} ${location}`],
+            maxItems: 30,
+            language: language,
+            region: region,
+            extractEmails: true,
+            extractWebsites: true,
+          })
+        });
 
       if (googleMapsResponse.ok) {
         const googleData = await googleMapsResponse.json();
@@ -64,9 +69,13 @@ const handler = async (req: Request): Promise<Response> => {
         if (googleData && Array.isArray(googleData) && googleData.length > 0) {
           const googleChurches = googleData
             .filter((place: any) => {
-              const hasChurchInTitle = place.title && place.title.toLowerCase().includes('church');
-              const hasChurchInCategory = place.categoryName && place.categoryName.toLowerCase().includes('church');
-              return hasChurchInTitle || hasChurchInCategory;
+              const title = (place.title || place.name || '').toLowerCase();
+              const category = (place.categoryName || '').toLowerCase();
+              
+              // Multi-language church keywords
+              const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde'];
+              
+              return churchKeywords.some(keyword => title.includes(keyword) || category.includes(keyword));
             })
             .map((place: any) => ({
               name: place.title || place.name,
@@ -86,8 +95,9 @@ const handler = async (req: Request): Promise<Response> => {
       } else {
         console.error('Google Maps API error:', googleMapsResponse.status, await googleMapsResponse.text());
       }
-    } catch (error) {
-      console.error('Google Maps scraper error:', error);
+      } catch (error) {
+        console.error(`Google Maps scraper error for ${searchTerm}:`, error);
+      }
     }
 
     // 2. Web Content Crawler for church directories
@@ -237,6 +247,49 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 // Helper functions
+function getLocationSettings(location: string): { language: string; region: string; searchTerms: string[] } {
+  const locationLower = location.toLowerCase();
+  
+  // Determine language and region based on location
+  if (locationLower.includes('spain') || locationLower.includes('españa') || locationLower.includes('madrid') || locationLower.includes('barcelona')) {
+    return {
+      language: 'es',
+      region: 'es',
+      searchTerms: ['iglesias', 'iglesia evangelica', 'iglesia protestante', 'templo', 'congregacion']
+    };
+  } else if (locationLower.includes('france') || locationLower.includes('paris') || locationLower.includes('lyon') || locationLower.includes('marseille')) {
+    return {
+      language: 'fr',
+      region: 'fr',
+      searchTerms: ['églises', 'église protestante', 'église évangélique', 'temple', 'assemblée']
+    };
+  } else if (locationLower.includes('italy') || locationLower.includes('italia') || locationLower.includes('rome') || locationLower.includes('milan')) {
+    return {
+      language: 'it',
+      region: 'it',
+      searchTerms: ['chiese', 'chiesa protestante', 'chiesa evangelica', 'tempio', 'congregazione']
+    };
+  } else if (locationLower.includes('germany') || locationLower.includes('deutschland') || locationLower.includes('berlin') || locationLower.includes('munich')) {
+    return {
+      language: 'de',
+      region: 'de',
+      searchTerms: ['kirchen', 'evangelische kirche', 'protestantische kirche', 'freikirche', 'gemeinde']
+    };
+  } else if (locationLower.includes('portugal') || locationLower.includes('lisbon') || locationLower.includes('porto')) {
+    return {
+      language: 'pt',
+      region: 'pt',
+      searchTerms: ['igrejas', 'igreja protestante', 'igreja evangélica', 'templo', 'congregação']
+    };
+  } else {
+    // Default to English
+    return {
+      language: 'en',
+      region: 'us',
+      searchTerms: ['churches', 'protestant churches', 'evangelical churches', 'baptist churches', 'methodist churches']
+    };
+  }
+}
 function extractCity(address: string, location: string): string {
   if (!address) return location.split(',')[0].trim();
   const parts = address.split(',');
@@ -294,11 +347,16 @@ function isCatholic(church: DiscoveredChurch): boolean {
   const text = `${church.name} ${church.denomination || ''}`.toLowerCase();
   console.log(`Checking if Catholic: "${church.name}" - text: "${text}"`);
   
-  const isCatholicResult = text.includes('catholic') || 
-         text.includes('notre dame') || 
-         text.includes('parish') ||
-         (text.includes('st.') && text.includes('catholic')) ||
-         (text.includes('saint') && text.includes('catholic'));
+  // Multi-language Catholic keywords
+  const catholicKeywords = [
+    'catholic', 'católica', 'catholique', 'cattolica', 'katholische', 'católica',
+    'notre dame', 'san ', 'santa ', 'saint ', 'santo ', 'sta. ', 'st. ',
+    'parish', 'parroquia', 'paroisse', 'parrocchia', 'pfarrei', 'paróquia',
+    'basilica', 'basílica', 'basilique', 'basilica', 'basilika',
+    'cathedral', 'catedral', 'cathédrale', 'cattedrale', 'kathedrale'
+  ];
+  
+  const isCatholicResult = catholicKeywords.some(keyword => text.includes(keyword));
   
   console.log(`Is Catholic: ${isCatholicResult}`);
   return isCatholicResult;
