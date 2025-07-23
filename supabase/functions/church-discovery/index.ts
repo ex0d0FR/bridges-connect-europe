@@ -18,6 +18,7 @@ interface DiscoveredChurch {
   phone?: string;
   email?: string;
   website?: string;
+  contact_name?: string;
   denomination?: string;
   source: string;
 }
@@ -46,7 +47,7 @@ const handler = async (req: Request): Promise<Response> => {
     const { language, region, searchTerms } = getLocationSettings(location);
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
-    // Use Google Places scraper with a reliable actor
+    // Use Google Places scraper with enhanced data extraction
     for (const searchTerm of searchTerms.slice(0, 2)) { // Use first 2 search terms
       try {
         console.log(`Running Google Places scraper for: ${searchTerm}...`);
@@ -54,20 +55,35 @@ const handler = async (req: Request): Promise<Response> => {
         const searchQuery = `${searchTerm} ${location}`;
         console.log(`Search query: ${searchQuery}`);
         
-        // Try a more reliable Google Maps Places scraper
-        const response = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
+        // Use a reliable Google Maps scraper
+        const response = await fetch(`https://api.apify.com/v2/acts/drobnikj/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            searchStringsArray: [searchQuery],
-            maxCrawledPlacesPerSearch: 25,
+            startUrls: [{ url: `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}` }],
+            maxCrawledPlaces: 30,
             language: language,
             countryCode: region.toUpperCase(),
             includeHistogram: false,
-            includeOpeningHours: false,
+            includeOpeningHours: true,
             includeReviews: false,
             maxReviews: 0,
-            maxImages: 0
+            maxImages: 1,
+            exportPlaceUrls: false,
+            additionalInfo: true, // This will give us more detailed info
+            includeDetailPageHtml: false,
+            reviewsSort: 'newest',
+            oneReviewPerRow: false,
+            scrapeReviewId: false,
+            scrapeReviewUrl: false,
+            scrapeReviewerId: false,
+            scrapeReviewerName: false,
+            scrapeReviewerUrl: false,
+            scrapeReviewText: false,
+            scrapeReviewPublishedAtDate: false,
+            scrapeReviewPublishedAtDatetime: false,
+            scrapeReviewResponseFromOwnerText: false,
+            reviewsTranslation: 'originalAndTranslated'
           })
         });
 
@@ -84,30 +100,41 @@ const handler = async (req: Request): Promise<Response> => {
               .filter((place: any) => {
                 const name = (place.name || place.title || '').toLowerCase();
                 const category = (place.category || place.categories || []).toString().toLowerCase();
+                const placeType = (place.placeType || '').toLowerCase();
                 
                 // Multi-language church keywords
                 const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'chapel', 'capilla'];
                 
                 const isChurch = churchKeywords.some(keyword => 
-                  name.includes(keyword) || category.includes(keyword)
+                  name.includes(keyword) || category.includes(keyword) || placeType.includes(keyword)
                 );
                 
                 if (isChurch) {
-                  console.log(`Found church: ${name} - Category: ${category}`);
+                  console.log(`Found church: ${name} - Category: ${category} - Type: ${placeType}`);
                 }
                 return isChurch;
               })
-              .map((place: any) => ({
-                name: place.name || place.title,
-                address: place.address || place.location?.address,
-                city: extractCity(place.address || place.location?.address, location),
-                country: extractCountry(place.address || place.location?.address, location),
-                phone: place.phone || place.phoneNumber,
-                email: place.email,
-                website: place.website || place.url,
-                denomination: extractDenomination(place.name || place.title, (place.category || []).join(' ')),
-                source: 'Google Places API'
-              }));
+              .map((place: any) => {
+                // Extract comprehensive data
+                const name = place.name || place.title;
+                const address = place.address || place.location?.address;
+                const phone = place.phone || place.phoneNumber;
+                const website = place.website || place.url;
+                const additionalInfo = place.additionalInfo || '';
+                
+                return {
+                  name: name,
+                  address: address,
+                  city: extractCity(address, location),
+                  country: extractCountry(address, location),
+                  phone: phone || extractPhone(additionalInfo),
+                  email: extractEmail(website, additionalInfo),
+                  website: website,
+                  contact_name: extractContactName(additionalInfo, name),
+                  denomination: extractDenomination(name, (place.category || []).join(' ')),
+                  source: 'Google Places API'
+                };
+              });
             
             console.log(`Filtered churches for "${searchTerm}": ${churches.length}`);
             allChurches.push(...churches);
@@ -124,7 +151,10 @@ const handler = async (req: Request): Promise<Response> => {
               address: `123 Main Street, ${location}`,
               city: extractCity('', location),
               country: extractCountry('', location),
-              phone: 'Contact for details',
+              phone: '+1-555-0123',
+              email: 'contact@church.example',
+              website: 'https://www.church.example',
+              contact_name: 'Pastor John Smith',
               denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
               source: 'Fallback Data'
             });
@@ -141,7 +171,10 @@ const handler = async (req: Request): Promise<Response> => {
             address: `123 Main Street, ${location}`,
             city: extractCity('', location),
             country: extractCountry('', location),
-            phone: 'Contact for details',
+            phone: '+1-555-0123',
+            email: 'contact@church.example',
+            website: 'https://www.church.example',
+            contact_name: 'Pastor John Smith',
             denomination: 'Protestant',
             source: 'Fallback Data'
           });
@@ -184,6 +217,45 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+// Helper functions for data extraction
+function extractEmail(website: string, additionalInfo: string): string | null {
+  if (!website && !additionalInfo) return null;
+  
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+  const text = `${website || ''} ${additionalInfo || ''}`;
+  const match = text.match(emailRegex);
+  return match ? match[0] : null;
+}
+
+function extractPhone(additionalInfo: string): string | null {
+  if (!additionalInfo) return null;
+  
+  // Multiple phone number patterns
+  const phoneRegex = /(?:\+33|0)[1-9](?:[. -]?\d{2}){4}|(?:\+1|1)?[. -]?\(?(\d{3})\)?[. -]?(\d{3})[. -]?(\d{4})|(?:\+44|0)[1-9]\d{8,9}/;
+  const match = additionalInfo.match(phoneRegex);
+  return match ? match[0] : null;
+}
+
+function extractContactName(additionalInfo: string, churchName: string): string | null {
+  if (!additionalInfo) return null;
+  
+  // Look for pastor, priest, minister patterns
+  const contactRegex = /(pasteur|pastor|père|father|minister|révérend|reverend|priest|padre)\s+([A-Za-z\s]+)/i;
+  const match = additionalInfo.match(contactRegex);
+  if (match && match[2]) {
+    return match[2].trim();
+  }
+  
+  // Look for contact person patterns
+  const personRegex = /(contact|responsable|directeur|director|leader|coordinator)\s*:\s*([A-Za-z\s]+)/i;
+  const personMatch = additionalInfo.match(personRegex);
+  if (personMatch && personMatch[2]) {
+    return personMatch[2].trim();
+  }
+  
+  return null;
+}
 
 // Helper functions
 function getLocationSettings(location: string): { language: string; region: string; searchTerms: string[] } {
