@@ -31,8 +31,10 @@ export function CreateTemplateDialog({ open, onOpenChange, onTemplateCreated }: 
     setIsLoading(true)
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) {
+        throw new Error("Please sign in to create templates")
+      }
 
       const { error } = await supabase
         .from('templates')
