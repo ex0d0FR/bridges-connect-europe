@@ -266,38 +266,39 @@ function getLocationSettings(location: string): { language: string; region: stri
     return {
       language: 'es',
       region: 'es',
-      searchTerms: ['iglesias', 'iglesia evangelica', 'iglesia protestante', 'templo', 'congregacion']
+      // Protestant-first search strategy: start with specific Protestant terms, then more general
+      searchTerms: ['iglesia evangélica', 'iglesia protestante', 'iglesia bautista', 'templo protestante', 'congregación evangélica']
     };
   } else if (locationLower.includes('france') || locationLower.includes('paris') || locationLower.includes('lyon') || locationLower.includes('marseille')) {
     return {
       language: 'fr',
       region: 'fr',
-      searchTerms: ['églises', 'église protestante', 'église évangélique', 'temple', 'assemblée']
+      searchTerms: ['église protestante', 'église évangélique', 'église baptiste', 'temple protestant', 'assemblée protestante']
     };
   } else if (locationLower.includes('italy') || locationLower.includes('italia') || locationLower.includes('rome') || locationLower.includes('milan')) {
     return {
       language: 'it',
       region: 'it',
-      searchTerms: ['chiese', 'chiesa protestante', 'chiesa evangelica', 'tempio', 'congregazione']
+      searchTerms: ['chiesa protestante', 'chiesa evangelica', 'chiesa battista', 'tempio protestante', 'congregazione evangelica']
     };
   } else if (locationLower.includes('germany') || locationLower.includes('deutschland') || locationLower.includes('berlin') || locationLower.includes('munich')) {
     return {
       language: 'de',
       region: 'de',
-      searchTerms: ['kirchen', 'evangelische kirche', 'protestantische kirche', 'freikirche', 'gemeinde']
+      searchTerms: ['evangelische kirche', 'protestantische kirche', 'baptistische kirche', 'freikirche', 'evangelische gemeinde']
     };
   } else if (locationLower.includes('portugal') || locationLower.includes('lisbon') || locationLower.includes('porto')) {
     return {
       language: 'pt',
       region: 'pt',
-      searchTerms: ['igrejas', 'igreja protestante', 'igreja evangélica', 'templo', 'congregação']
+      searchTerms: ['igreja protestante', 'igreja evangélica', 'igreja batista', 'templo protestante', 'congregação evangélica']
     };
   } else {
     // Default to English
     return {
       language: 'en',
       region: 'us',
-      searchTerms: ['churches', 'protestant churches', 'evangelical churches', 'baptist churches', 'methodist churches']
+      searchTerms: ['protestant churches', 'evangelical churches', 'baptist churches', 'methodist churches', 'pentecostal churches']
     };
   }
 }
@@ -335,17 +336,23 @@ function extractDenomination(name: string, description: string): string {
 }
 
 function isCatholic(church: DiscoveredChurch): boolean {
-  const text = `${church.name} ${church.denomination || ''} ${church.address || ''}`.toLowerCase();
+  const name = church.name.toLowerCase();
+  const denomination = (church.denomination || '').toLowerCase();
+  const address = (church.address || '').toLowerCase();
+  const text = `${name} ${denomination} ${address}`;
+  
+  console.log(`Checking if church is Catholic: "${church.name}"`);
   
   // First check for strong Protestant indicators - these override everything
-  const strongProtestantIndicators = /\b(protestant|évangélique|evangelica|evangelico|evangelical|evangélica|baptiste|baptist|bautista|methodist|metodista|méthodiste|lutheran|luterana|luthérien|presbyterian|presbiteriana|presbytérien|pentecostal|pentecôtiste|adventist|adventista|adventiste|reformed|reformada|réformée|assemblies|assembly|assemblée|asamblea|église protestante|iglesia protestante|chiesa protestante|igreja protestante|temple protestant|iglesia evangélica|église évangélique|chiesa evangelica|igreja evangélica)\b/i;
+  const strongProtestantIndicators = /\b(protestant|évangélique|evangelica|evangelico|evangelical|evangélica|baptiste|baptist|bautista|methodist|metodista|méthodiste|lutheran|luterana|luthérien|presbyterian|presbiteriana|presbytérien|pentecostal|pentecôtiste|adventist|adventista|adventiste|reformed|reformada|réformée|assemblies|assembly|assemblée|asamblea|église protestante|iglesia protestante|chiesa protestante|igreja protestante|temple protestant|iglesia evangélica|église évangélique|chiesa evangelica|igreja evangélica|born again|renacido|né de nouveau|nato di nuovo|wiedergeboren|salvation army|ejército de salvación|armée du salut|esercito della salvezza|heilsarmee)\b/i;
   
   if (strongProtestantIndicators.test(text)) {
+    console.log(`  → NOT Catholic (Protestant indicator found)`);
     return false; // Definitely not Catholic
   }
   
-  // Strong Catholic indicators (more specific than before)
-  const strongCatholicKeywords = [
+  // Enhanced Catholic indicators
+  const catholicIndicators = [
     // Direct Catholic terms
     'catholic', 'católica', 'catholique', 'cattolica', 'katholische',
     'roman catholic', 'católica romana', 'catholique romaine',
@@ -357,33 +364,73 @@ function isCatholic(church: DiscoveredChurch): boolean {
     'monastery', 'monasterio', 'monastère', 'monastero',
     'convent', 'convento', 'couvent',
     
-    // Catholic administrative terms
-    'diocese', 'archdiocese', 'diócesis', 'archidiócesis', 'diocèse', 'archidiocèse',
-    'parish', 'parroquia', 'paroisse', 'parrocchia', 'pfarrei', 'paróquia',
-    'papal', 'pontifical', 'vatican', 'vaticano',
+    // Catholic administrative terms (stronger indicators)
+    'archdiocese', 'archidiócesis', 'archidiocèse', 'arcidiocesi',
+    'papal', 'pontifical', 'vatican', 'vaticano', 'pontificia', 'pontificio',
+    'real basílica', 'royal basilica', 'basilique royale',
     
-    // Catholic orders
+    // Catholic orders and congregations
     'jesuits', 'jesuitas', 'jésuites', 'gesuiti', 'jesuiten',
     'franciscan', 'franciscano', 'franciscain', 'francescano', 'franziskaner',
     'dominican', 'dominico', 'dominicain', 'domenicano', 'dominikaner',
     'benedictine', 'benedictino', 'bénédictin', 'benedettino', 'benediktiner',
     'opus dei', 'carmelite', 'carmelita', 'carmélite', 'carmelitano',
+    'salesians', 'salesianos', 'salésiens', 'salesiani',
     
-    // Catholic-specific devotions
-    'notre dame', 'our lady', 'nuestra señora', 'madonna'
+    // Catholic-specific devotions and titles
+    'notre dame', 'our lady', 'nuestra señora', 'madonna', 'virgen',
+    'sacred heart', 'sagrado corazón', 'sacré-cœur', 'sacro cuore',
+    'immaculate', 'inmaculada', 'immaculée', 'immacolata',
+    'assumption', 'asunción', 'assomption', 'assunzione'
   ];
   
-  // Check for strong Catholic indicators
-  const hasStrongCatholicIndicator = strongCatholicKeywords.some(keyword => 
+  // Check for Catholic indicators
+  const hasCatholicIndicator = catholicIndicators.some(keyword => 
     text.includes(keyword.toLowerCase())
   );
   
-  // Saint pattern - but only if no Protestant context
-  const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+[a-z]/i;
-  const hasSaintPattern = saintPattern.test(church.name);
+  // Parish pattern - very strong Catholic indicator
+  const parishPattern = /\b(parroquia|paroisse|parrocchia|parish|pfarrei|paróquia)\s+(de\s+)?(san|santa|santo|saint|st\.?|ste\.?|são)/i;
+  const hasParishPattern = parishPattern.test(name);
   
-  // Only consider it Catholic if it has strong Catholic indicators OR saint pattern without Protestant context
-  return hasStrongCatholicIndicator || hasSaintPattern;
+  // Saint pattern - but much stronger when combined with Catholic context
+  const traditionalCatholicSaints = [
+    'maría', 'mary', 'marie', 'maria',
+    'josé', 'joseph', 'giuseppe', 'josef',
+    'francisco', 'francis', 'françois', 'francesco', 'franziskus',
+    'antonio', 'anthony', 'antoine', 'antonio', 'antonius',
+    'pedro', 'peter', 'pierre', 'pietro', 'petrus',
+    'pablo', 'paul', 'paolo', 'paulus',
+    'juan', 'john', 'jean', 'giovanni', 'johannes',
+    'miguel', 'michael', 'michel', 'michele', 'michael',
+    'teresa', 'thérèse', 'teresa',
+    'domingo', 'dominic', 'dominique', 'domenico',
+    'ignacio', 'ignatius', 'ignace', 'ignazio',
+    'agustín', 'augustine', 'augustin', 'agostino',
+    'tomás', 'thomas', 'tommaso',
+    'luis', 'louis', 'luigi', 'ludwig',
+    'carlos', 'charles', 'carlo',
+    'rafael', 'raphael', 'raphaël', 'raffaele',
+    'vicente', 'vincent', 'vincenzo',
+    'sebastián', 'sebastian', 'sébastien', 'sebastiano'
+  ];
+  
+  const saintPattern = /\b(saint|san|santa|santo|st\.?|ste\.?|são)\s+([a-záéíóúñüç]+)/i;
+  const saintMatch = name.match(saintPattern);
+  const hasCatholicSaint = saintMatch && traditionalCatholicSaints.some(saint => 
+    saintMatch[2].toLowerCase().includes(saint)
+  );
+  
+  // Final decision logic
+  const isCatholicChurch = hasCatholicIndicator || hasParishPattern || hasCatholicSaint;
+  
+  if (isCatholicChurch) {
+    console.log(`  → IS Catholic (reason: ${hasCatholicIndicator ? 'Catholic indicator' : hasParishPattern ? 'Parish pattern' : 'Catholic saint'})`);
+  } else {
+    console.log(`  → NOT Catholic`);
+  }
+  
+  return isCatholicChurch;
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
