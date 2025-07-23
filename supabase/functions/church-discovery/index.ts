@@ -45,64 +45,73 @@ const handler = async (req: Request): Promise<Response> => {
     let allChurches: DiscoveredChurch[] = [];
 
     // 1. Google Maps Places Scraper with multiple search terms
-    for (const searchTerm of searchTerms) {
+    for (const searchTerm of searchTerms.slice(0, 1)) { // Test with just one term first
       try {
         console.log(`Running Google Maps scraper for: ${searchTerm}...`);
         const googleMapsResponse = await fetch(`https://api.apify.com/v2/acts/compass/crawler-google-places/run-sync-get-dataset-items?token=${apifyApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            queries: [`${searchTerm} ${location}`],
-            maxItems: 30,
+            searchStringsArray: [`${searchTerm} ${location}`],
+            maxCrawledPlacesPerSearch: 20,
             language: language,
-            region: region,
-            extractEmails: true,
-            extractWebsites: true,
+            countryCode: region.toUpperCase(),
+            includeHistogram: false,
+            includeOpeningHours: false,
+            includeReviews: false,
+            reviewsSort: 'newest',
+            maxReviews: 0,
+            maxImages: 0,
+            exportPlaceUrls: false
           })
         });
 
-      if (googleMapsResponse.ok) {
-        const googleData = await googleMapsResponse.json();
         console.log(`Google Maps API Response Status: ${googleMapsResponse.status}`);
-        console.log(`Google Maps raw response sample:`, JSON.stringify(googleData.slice(0, 2), null, 2));
-        console.log(`Google Maps found ${googleData.length} total results`);
         
-        if (googleData && Array.isArray(googleData) && googleData.length > 0) {
-          const googleChurches = googleData
-            .filter((place: any) => {
-              const title = (place.title || place.name || '').toLowerCase();
-              const category = (place.categoryName || place.category || '').toLowerCase();
-              
-              // Multi-language church keywords
-              const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde'];
-              
-              const isChurch = churchKeywords.some(keyword => title.includes(keyword) || category.includes(keyword));
-              if (isChurch) {
-                console.log(`Found potential church: ${title} - Category: ${category}`);
-              }
-              return isChurch;
-            })
-            .map((place: any) => ({
-              name: place.title || place.name,
-              address: place.address,
-              city: extractCity(place.address, location),
-              country: extractCountry(place.address, location),
-              phone: place.phoneNumber || place.phone,
-              email: place.email,
-              website: place.website || place.url,
-              denomination: extractDenomination(place.title || place.name, place.categoryName || ''),
-              source: 'Google Maps'
-            }));
+        if (googleMapsResponse.ok) {
+          const googleData = await googleMapsResponse.json();
+          console.log(`Google Maps found ${googleData.length} total results`);
+          console.log(`Sample result structure:`, JSON.stringify(googleData[0], null, 2));
           
-          console.log(`Filtered Google churches: ${googleChurches.length}`);
-          allChurches.push(...googleChurches);
+          if (googleData && Array.isArray(googleData) && googleData.length > 0) {
+            const googleChurches = googleData
+              .filter((place: any) => {
+                const title = (place.title || place.name || '').toLowerCase();
+                const category = (place.categories || place.categoryName || place.category || []).toString().toLowerCase();
+                
+                // Multi-language church keywords
+                const churchKeywords = ['church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 'gemeinde', 'religious'];
+                
+                const isChurch = churchKeywords.some(keyword => 
+                  title.includes(keyword) || category.includes(keyword)
+                );
+                
+                if (isChurch) {
+                  console.log(`Found potential church: ${title} - Categories: ${category}`);
+                }
+                return isChurch;
+              })
+              .map((place: any) => ({
+                name: place.title || place.name,
+                address: place.address || place.location?.address,
+                city: extractCity(place.address || place.location?.address, location),
+                country: extractCountry(place.address || place.location?.address, location),
+                phone: place.phoneNumber || place.phone,
+                email: place.email,
+                website: place.website || place.url,
+                denomination: extractDenomination(place.title || place.name, (place.categories || []).join(' ')),
+                source: 'Google Maps'
+              }));
+            
+            console.log(`Filtered Google churches: ${googleChurches.length}`);
+            allChurches.push(...googleChurches);
+          } else {
+            console.log('No valid data received from Google Maps API');
+          }
         } else {
-          console.log('No valid data received from Google Maps API');
+          const errorText = await googleMapsResponse.text();
+          console.error(`Google Maps API error: ${googleMapsResponse.status} ${errorText}`);
         }
-      } else {
-        const errorText = await googleMapsResponse.text();
-        console.error(`Google Maps API error: ${googleMapsResponse.status} ${errorText}`);
-      }
       } catch (error) {
         console.error(`Google Maps scraper error for ${searchTerm}:`, error);
       }
