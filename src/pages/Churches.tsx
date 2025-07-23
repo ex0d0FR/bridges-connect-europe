@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,8 +23,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Plus, Search, Filter, Upload, Download, Mail, Phone, Globe, Trash2, Edit } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Plus, Search, Filter, Upload, Download, Mail, Phone, Globe, Trash2, Edit, ChevronDown, FileText } from "lucide-react"
 import { useChurches, useDeleteChurch } from "@/hooks/useChurches"
+import { useChurchImportExport } from "@/hooks/useChurchImportExport"
 import AddChurchDialog from "@/components/AddChurchDialog"
 import EditChurchDialog from "@/components/EditChurchDialog"
 import { formatDistanceToNow } from "date-fns"
@@ -32,6 +39,7 @@ import { formatDistanceToNow } from "date-fns"
 export default function Churches() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Debounce search term
   useEffect(() => {
@@ -43,6 +51,29 @@ export default function Churches() {
 
   const { data: churches, isLoading, error } = useChurches(debouncedSearchTerm)
   const deleteChurch = useDeleteChurch()
+  const { exportToCSV, importFromCSV, downloadTemplate } = useChurchImportExport()
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file && file.type === 'text/csv') {
+      importFromCSV(file)
+    } else {
+      // Reset the input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleExport = () => {
+    if (churches) {
+      exportToCSV(churches)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -54,11 +85,33 @@ export default function Churches() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button variant="outline">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={handleImportClick}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import CSV File
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={downloadTemplate}>
+                <FileText className="h-4 w-4 mr-2" />
+                Download Template
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" onClick={handleExport}>
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
