@@ -130,11 +130,17 @@
     "title": "Templates",
     "emailTemplates": "Email Templates",
     "smsTemplates": "SMS Templates",
+    "whatsappTemplates": "WhatsApp Templates",
     "socialMediaTemplates": "Social Media Templates",
     "createTemplate": "Create Template",
+    "createEmailTemplate": "Create Email Template",
+    "createSmsTemplate": "Create SMS Template",
+    "createWhatsAppTemplate": "Create WhatsApp Template",
     "noTemplates": "No templates created yet",
     "getStarted": "Get started by creating your first template to streamline your church outreach campaigns.",
-    "createFirst": "Create Your First Template"
+    "createFirst": "Create Your First Template",
+    "multiLanguage": "Multi-language",
+    "manageLanguages": "Manage Languages"
   },
   "settings": {
     "title": "Settings",

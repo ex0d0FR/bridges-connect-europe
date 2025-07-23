@@ -130,11 +130,17 @@
     "title": "Plantillas",
     "emailTemplates": "Plantillas de Correo",
     "smsTemplates": "Plantillas de SMS",
+    "whatsappTemplates": "Plantillas de WhatsApp",
     "socialMediaTemplates": "Plantillas de Redes Sociales",
     "createTemplate": "Crear Plantilla",
+    "createEmailTemplate": "Crear Plantilla de Correo",
+    "createSmsTemplate": "Crear Plantilla de SMS",
+    "createWhatsAppTemplate": "Crear Plantilla de WhatsApp",
     "noTemplates": "Aún no se han creado plantillas",
     "getStarted": "Comienza creando tu primera plantilla para optimizar tus campañas de alcance a iglesias.",
-    "createFirst": "Crear Tu Primera Plantilla"
+    "createFirst": "Crear Tu Primera Plantilla",
+    "multiLanguage": "Multiidioma",
+    "manageLanguages": "Gestionar Idiomas"
   },
   "settings": {
     "title": "Configuración",

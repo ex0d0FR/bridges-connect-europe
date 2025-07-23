@@ -130,11 +130,17 @@
     "title": "Modèles",
     "emailTemplates": "Modèles d'E-mail",
     "smsTemplates": "Modèles SMS",
+    "whatsappTemplates": "Modèles WhatsApp",
     "socialMediaTemplates": "Modèles Réseaux Sociaux",
     "createTemplate": "Créer Modèle",
+    "createEmailTemplate": "Créer Modèle d'E-mail",
+    "createSmsTemplate": "Créer Modèle SMS",
+    "createWhatsAppTemplate": "Créer Modèle WhatsApp",
     "noTemplates": "Aucun modèle créé encore",
     "getStarted": "Commencez en créant votre premier modèle pour rationaliser vos campagnes de sensibilisation des églises.",
-    "createFirst": "Créer Votre Premier Modèle"
+    "createFirst": "Créer Votre Premier Modèle",
+    "multiLanguage": "Multilingue",
+    "manageLanguages": "Gérer les Langues"
   },
   "settings": {
     "title": "Paramètres",
