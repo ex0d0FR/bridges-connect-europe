@@ -34,22 +34,21 @@ const handler = async (req: Request): Promise<Response> => {
     console.log('JWT token extracted:', jwt ? 'yes' : 'no');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://ovoldtknfdyvyypadnmf.supabase.co';
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2xkdGtuZmR5dnl5cGFkbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzc5NDUsImV4cCI6MjA2ODcxMzk0NX0.9uwPMIYk88gx_NcKp91QxF7xS44E7q4UDJwRgoYspk0';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    // Create Supabase client with the JWT for authentication
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${jwt}`,
-        }
-      },
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
+    }
+    
+    // Create Supabase client with service role key for server operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       }
     });
 
-    // Get user from JWT directly instead of using getUser()
+    // Verify JWT and get user data
     const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     console.log('User data:', user ? { id: user.id, email: user.email } : 'null');
     console.log('Auth error:', authError);
