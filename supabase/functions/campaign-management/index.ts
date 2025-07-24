@@ -20,27 +20,32 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { action, campaignId, scheduleTime }: CampaignAction = await req.json();
     
-    // Get auth header for Supabase
+    // Get auth header and extract JWT token
     const authHeader = req.headers.get('Authorization');
     console.log('Auth header received:', authHeader ? 'present' : 'missing');
-    console.log('Full headers:', Object.fromEntries(req.headers.entries()));
     
-    if (!authHeader) {
-      console.error('No authorization header found');
-      throw new Error('No authorization header provided');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('No valid authorization header found');
+      throw new Error('No valid authorization header provided');
     }
+
+    // Extract JWT token from "Bearer ..." header
+    const jwt = authHeader.replace('Bearer ', '');
+    console.log('JWT token extracted:', jwt ? 'yes' : 'no');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://ovoldtknfdyvyypadnmf.supabase.co';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2xkdGtuZmR5dnl5cGFkbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzc5NDUsImV4cCI6MjA2ODcxMzk0NX0.9uwPMIYk88gx_NcKp91QxF7xS44E7q4UDJwRgoYspk0';
     
+    // Create Supabase client with JWT token for user context
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { 
-        headers: { 
-          Authorization: authHeader 
-        } 
+      global: {
+        headers: {
+          Authorization: `Bearer ${jwt}`,
+        }
       },
       auth: {
-        persistSession: false
+        autoRefreshToken: false,
+        persistSession: false,
       }
     });
 
