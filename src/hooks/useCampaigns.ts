@@ -105,6 +105,16 @@ export const useLaunchCampaign = () => {
 
   return useMutation({
     mutationFn: async (campaignId: string) => {
+      console.log('Launching campaign:', campaignId);
+      
+      // Check if user is authenticated
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('Current user:', user ? { id: user.id, email: user.email } : 'not authenticated');
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase.functions.invoke('campaign-management', {
         body: {
           action: 'start',
@@ -112,7 +122,12 @@ export const useLaunchCampaign = () => {
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+      
+      console.log('Campaign launch response:', data);
       return data;
     },
     onSuccess: () => {

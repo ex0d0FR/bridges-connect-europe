@@ -23,9 +23,11 @@ const handler = async (req: Request): Promise<Response> => {
     // Get auth header for Supabase
     const authHeader = req.headers.get('Authorization');
     console.log('Auth header received:', authHeader ? 'present' : 'missing');
+    console.log('Full headers:', Object.fromEntries(req.headers.entries()));
     
     if (!authHeader) {
-      throw new Error('No authorization header');
+      console.error('No authorization header found');
+      throw new Error('No authorization header provided');
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://ovoldtknfdyvyypadnmf.supabase.co';
@@ -44,8 +46,12 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Get user ID from auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('User data:', user ? { id: user.id, email: user.email } : 'null');
+    console.log('Auth error:', authError);
+    
     if (authError || !user) {
-      throw new Error('Authentication failed');
+      console.error('Authentication failed:', authError?.message || 'No user found');
+      throw new Error(`Authentication failed: ${authError?.message || 'No user found'}`);
     }
 
     // Get campaign details
