@@ -36,7 +36,7 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://ovoldtknfdyvyypadnmf.supabase.co';
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2xkdGtuZmR5dnl5cGFkbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzc5NDUsImV4cCI6MjA2ODcxMzk0NX0.9uwPMIYk88gx_NcKp91QxF7xS44E7q4UDJwRgoYspk0';
     
-    // Create Supabase client with JWT token for user context
+    // Create Supabase client with the JWT for authentication
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -49,8 +49,8 @@ const handler = async (req: Request): Promise<Response> => {
       }
     });
 
-    // Get user ID from auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get user from JWT directly instead of using getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     console.log('User data:', user ? { id: user.id, email: user.email } : 'null');
     console.log('Auth error:', authError);
     
