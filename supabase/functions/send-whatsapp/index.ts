@@ -22,19 +22,42 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    )
-
-    // Get the authorization header
-    const authHeader = req.headers.get('Authorization')!
-    const token = authHeader.replace('Bearer ', '')
+    // Get the authorization header and extract JWT token
+    const authHeader = req.headers.get('Authorization');
+    console.log('Auth header received:', authHeader ? 'present' : 'missing');
     
-    // Get user from token
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token)
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('No valid authorization header found');
+      throw new Error('No valid authorization header provided');
+    }
+
+    // Extract JWT token from "Bearer ..." header
+    const jwt = authHeader.replace('Bearer ', '');
+    console.log('JWT token extracted:', jwt ? 'yes' : 'no');
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? 'https://ovoldtknfdyvyypadnmf.supabase.co';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseServiceKey) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
+    }
+    
+    // Create Supabase client with service role key for server operations
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      }
+    });
+
+    // Verify JWT and get user data
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(jwt);
+    console.log('User data:', user ? { id: user.id, email: user.email } : 'null');
+    console.log('Auth error:', authError);
+    
     if (authError || !user) {
-      throw new Error('Unauthorized')
+      console.error('Authentication failed:', authError?.message || 'No user found');
+      throw new Error(`Authentication failed: ${authError?.message || 'No user found'}`);
     }
 
     const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type }: WhatsAppMessage = await req.json()
