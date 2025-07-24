@@ -22,6 +22,8 @@ const handler = async (req: Request): Promise<Response> => {
     
     // Get auth header for Supabase
     const authHeader = req.headers.get('Authorization');
+    console.log('Auth header received:', authHeader ? 'present' : 'missing');
+    
     if (!authHeader) {
       throw new Error('No authorization header');
     }
@@ -30,7 +32,14 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92b2xkdGtuZmR5dnl5cGFkbm1mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTMxMzc5NDUsImV4cCI6MjA2ODcxMzk0NX0.9uwPMIYk88gx_NcKp91QxF7xS44E7q4UDJwRgoYspk0';
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      global: { 
+        headers: { 
+          Authorization: authHeader 
+        } 
+      },
+      auth: {
+        persistSession: false
+      }
     });
 
     // Get user ID from auth
