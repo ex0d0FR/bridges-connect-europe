@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Pause, Play, RefreshCw, CheckCircle, XCircle, Clock, Send, Eye, MousePointer, MessageSquare } from "lucide-react"
+import { ArrowLeft, Pause, Play, RefreshCw, CheckCircle, XCircle, Clock, Send, Eye, MousePointer, MessageSquare, Settings } from "lucide-react"
 import { useCampaignDetails, useRetryFailedMessages } from "@/hooks/useCampaignDetails"
 
 export default function CampaignDetails() {
@@ -100,6 +100,12 @@ export default function CampaignDetails() {
               Retry Failed
             </Button>
           )}
+          <Link to="/settings">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Test Messages
+            </Button>
+          </Link>
         </div>
       </div>
 

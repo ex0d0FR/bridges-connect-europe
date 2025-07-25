@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import { MessageTestCenter } from "@/components/MessageTestCenter"
+import { ConfigurationChecker } from "@/components/ConfigurationChecker"
 
 export default function Settings() {
   return (
@@ -16,13 +18,23 @@ export default function Settings() {
         </p>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue="test" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="test">Test Center</TabsTrigger>
+          <TabsTrigger value="config">Configuration</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="messaging">Messaging</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="test">
+          <MessageTestCenter />
+        </TabsContent>
+
+        <TabsContent value="config">
+          <ConfigurationChecker />
+        </TabsContent>
 
         <TabsContent value="general">
           <Card>
