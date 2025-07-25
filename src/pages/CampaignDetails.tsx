@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Pause, Play, RefreshCw, CheckCircle, XCircle, Clock, Send, Eye, MousePointer, MessageSquare } from "lucide-react"
-import { useCampaignDetails } from "@/hooks/useCampaignDetails"
+import { useCampaignDetails, useRetryFailedMessages } from "@/hooks/useCampaignDetails"
 
 export default function CampaignDetails() {
   const { id } = useParams<{ id: string }>()
@@ -19,6 +19,8 @@ export default function CampaignDetails() {
     churchStats,
     engagementStats 
   } = useCampaignDetails(id!)
+  
+  const retryFailedMessages = useRetryFailedMessages()
 
   if (isLoading) {
     return (
@@ -88,8 +90,13 @@ export default function CampaignDetails() {
             </Button>
           )}
           {failedMessages > 0 && (
-            <Button variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => retryFailedMessages.mutate({ campaignId: id! })}
+              disabled={retryFailedMessages.isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${retryFailedMessages.isPending ? 'animate-spin' : ''}`} />
               Retry Failed
             </Button>
           )}
@@ -329,8 +336,13 @@ export default function CampaignDetails() {
                             Failed at: {new Date(message.created_at).toLocaleString()}
                           </div>
                         </div>
-                        <Button variant="outline" size="sm">
-                          <RefreshCw className="h-4 w-4 mr-2" />
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => retryFailedMessages.mutate({ campaignId: id!, messageId: message.id })}
+                          disabled={retryFailedMessages.isPending}
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${retryFailedMessages.isPending ? 'animate-spin' : ''}`} />
                           Retry
                         </Button>
                       </div>

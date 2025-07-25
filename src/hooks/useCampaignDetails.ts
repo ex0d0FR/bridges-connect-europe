@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/integrations/supabase/client'
+import { useToast } from '@/hooks/use-toast'
 
 export interface CampaignDetails {
   id: string
@@ -141,4 +142,108 @@ export const useCampaignDetails = (campaignId: string) => {
     churchStats: churchStatsQuery.data,
     engagementStats,
   }
+}
+
+export const useRetryFailedMessages = () => {
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ campaignId, messageId }: { campaignId: string, messageId?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      // Get failed messages (either specific message or all failed messages for campaign)
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .eq('campaign_id', campaignId)
+        .eq('status', 'failed')
+        .eq('created_by', user.id)
+
+      if (messageId) {
+        query = query.eq('id', messageId)
+      }
+
+      const { data: failedMessages, error } = await query
+
+      if (error) throw error
+      if (!failedMessages || failedMessages.length === 0) {
+        throw new Error('No failed messages found')
+      }
+
+      // Retry each failed message
+      const retryPromises = failedMessages.map(async (message) => {
+        try {
+          let functionName = ''
+          switch (message.type) {
+            case 'email':
+              functionName = 'send-email'
+              break
+            case 'sms':
+              functionName = 'send-sms'
+              break
+            case 'whatsapp':
+              functionName = 'send-whatsapp'
+              break
+            default:
+              throw new Error(`Unsupported message type: ${message.type}`)
+          }
+
+          const { error: retryError } = await supabase.functions.invoke(functionName, {
+            body: {
+              messageId: message.id,
+              recipient: message.recipient_email || message.recipient_phone,
+              subject: message.subject,
+              content: message.content,
+              metadata: message.metadata
+            }
+          })
+
+          if (retryError) {
+            console.error(`Failed to retry message ${message.id}:`, retryError)
+            return { success: false, messageId: message.id, error: retryError }
+          }
+
+          return { success: true, messageId: message.id }
+        } catch (error) {
+          console.error(`Error retrying message ${message.id}:`, error)
+          return { success: false, messageId: message.id, error }
+        }
+      })
+
+      const results = await Promise.all(retryPromises)
+      return results
+    },
+    onSuccess: (results) => {
+      const successCount = results.filter(r => r.success).length
+      const failCount = results.filter(r => !r.success).length
+
+      if (successCount > 0) {
+        toast({
+          title: "Messages Retried",
+          description: `${successCount} message(s) queued for retry${failCount > 0 ? `, ${failCount} failed` : ''}`,
+        })
+      }
+
+      if (failCount > 0 && successCount === 0) {
+        toast({
+          title: "Retry Failed",
+          description: "Failed to retry messages. Please check your configuration.",
+          variant: "destructive",
+        })
+      }
+
+      // Refetch campaign data
+      queryClient.invalidateQueries({ queryKey: ['campaign-details'] })
+      queryClient.invalidateQueries({ queryKey: ['campaign-message-stats'] })
+    },
+    onError: (error) => {
+      toast({
+        title: "Retry Failed",
+        description: error.message || "Failed to retry messages",
+        variant: "destructive",
+      })
+    },
+  })
 }
