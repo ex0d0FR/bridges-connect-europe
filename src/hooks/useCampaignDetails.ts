@@ -176,28 +176,44 @@ export const useRetryFailedMessages = () => {
       const retryPromises = failedMessages.map(async (message) => {
         try {
           let functionName = ''
+          let requestBody: any = {}
+
           switch (message.type) {
             case 'email':
               functionName = 'send-email'
+              requestBody = {
+                to: message.recipient_email,
+                subject: message.subject,
+                content: message.content,
+                templateId: message.template_id,
+                campaignId: message.campaign_id,
+                churchId: message.church_id
+              }
               break
             case 'sms':
               functionName = 'send-sms'
+              requestBody = {
+                to: message.recipient_phone,
+                content: message.content,
+                templateId: message.template_id,
+                campaignId: message.campaign_id,
+                churchId: message.church_id
+              }
               break
             case 'whatsapp':
               functionName = 'send-whatsapp'
+              requestBody = {
+                recipient_phone: message.recipient_phone,
+                message_body: message.content,
+                message_type: 'text'
+              }
               break
             default:
               throw new Error(`Unsupported message type: ${message.type}`)
           }
 
           const { error: retryError } = await supabase.functions.invoke(functionName, {
-            body: {
-              messageId: message.id,
-              recipient: message.recipient_email || message.recipient_phone,
-              subject: message.subject,
-              content: message.content,
-              metadata: message.metadata
-            }
+            body: requestBody
           })
 
           if (retryError) {
