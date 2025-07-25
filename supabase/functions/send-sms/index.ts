@@ -43,13 +43,12 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Supabase configuration missing');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Get user ID from auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get user ID from auth using the provided token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (authError || !user) {
+      console.error('Auth error:', authError);
       throw new Error('Authentication failed');
     }
 
