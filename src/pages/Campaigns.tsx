@@ -1,5 +1,6 @@
 
 import { useState } from "react"
+import { Link } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -150,10 +151,12 @@ export default function Campaigns() {
                       <Users className="h-4 w-4 mr-2" />
                       Churches
                     </Button>
-                    <Button variant="outline" size="sm">
-                      <BarChart3 className="h-4 w-4 mr-2" />
-                      Analytics
-                    </Button>
+                    <Link to={`/campaigns/${campaign.id}`}>
+                      <Button variant="outline" size="sm">
+                        <BarChart3 className="h-4 w-4 mr-2" />
+                        Details
+                      </Button>
+                    </Link>
                     <Button 
                       size="sm" 
                       disabled={campaign.status !== 'draft' || launchCampaignMutation.isPending}

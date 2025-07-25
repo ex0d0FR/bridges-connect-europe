@@ -16,6 +16,7 @@ import Dashboard from "./pages/Dashboard";
 import Churches from "./pages/Churches";
 import ChurchDiscovery from "./pages/ChurchDiscovery";
 import Campaigns from "./pages/Campaigns";
+import CampaignDetails from "./pages/CampaignDetails";
 import Templates from "./pages/Templates";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
@@ -61,6 +62,7 @@ const AppContent = () => {
               <Route path="/churches" element={<Churches />} />
               <Route path="/discover" element={<ChurchDiscovery />} />
               <Route path="/campaigns" element={<Campaigns />} />
+              <Route path="/campaigns/:id" element={<CampaignDetails />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
