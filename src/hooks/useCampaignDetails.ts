@@ -205,7 +205,10 @@ export const useRetryFailedMessages = () => {
               requestBody = {
                 recipient_phone: message.recipient_phone,
                 message_body: message.content,
-                message_type: 'text'
+                message_type: 'text',
+                templateId: message.template_id,
+                campaignId: message.campaign_id,
+                churchId: message.church_id
               }
               break
             default:
