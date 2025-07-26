@@ -213,7 +213,9 @@ const handler = async (req: Request): Promise<Response> => {
                 to: church.email,
                 subject: template.subject || `Message from ${campaign.name}`,
                 content: template.content,
-                messageId: messageRecord.id
+                templateId: template.id,
+                campaignId: campaign.id,
+                churchId: church.id
               }
             });
 
@@ -235,8 +237,10 @@ const handler = async (req: Request): Promise<Response> => {
             const { error: smsError } = await supabase.functions.invoke('send-sms', {
               body: {
                 to: church.phone,
-                message: template.content,
-                messageId: messageRecord.id
+                content: template.content,
+                templateId: template.id,
+                campaignId: campaign.id,
+                churchId: church.id
               }
             });
 
@@ -257,9 +261,12 @@ const handler = async (req: Request): Promise<Response> => {
           } else if (template.type === 'whatsapp') {
             const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
               body: {
-                to: church.phone,
-                message: template.content,
-                messageId: messageRecord.id
+                recipient_phone: church.phone,
+                message_body: template.content,
+                message_type: 'text',
+                templateId: template.id,
+                campaignId: campaign.id,
+                churchId: church.id
               }
             });
 
