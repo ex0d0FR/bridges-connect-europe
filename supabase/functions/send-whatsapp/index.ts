@@ -117,6 +117,12 @@ serve(async (req) => {
 
     if (!whatsappResponse.ok) {
       console.error('WhatsApp API error:', whatsappResult)
+      
+      // Check for specific token expiration error
+      if (whatsappResult.error?.code === 190) {
+        throw new Error(`WhatsApp access token has expired. Please update your token in the settings. Error: ${whatsappResult.error.message}`)
+      }
+      
       throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'}`)
     }
 
