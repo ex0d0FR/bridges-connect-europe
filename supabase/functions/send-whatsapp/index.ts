@@ -61,7 +61,8 @@ serve(async (req) => {
       throw new Error(`Authentication failed: ${authError?.message || 'No user found'}`);
     }
 
-    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest }: WhatsAppMessage = await req.json()
+    const requestBody = await req.json();
+    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string } = requestBody;
 
     // WhatsApp Business API configuration
     const whatsappApiUrl = `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`
@@ -132,6 +133,27 @@ serve(async (req) => {
     // For test messages, we don't log to database
     if (isTest) {
       console.log('Test message - skipping database logging');
+    } else {
+      // Log message to database for campaign messages      
+      if (templateId && campaignId && churchId) {
+        const { error: dbError } = await supabaseClient
+          .from('messages')
+          .update({
+            status: 'sent',
+            external_id: whatsappResult.messages?.[0]?.id,
+            sent_at: new Date().toISOString()
+          })
+          .eq('template_id', templateId)
+          .eq('campaign_id', campaignId)
+          .eq('church_id', churchId)
+          .eq('type', 'whatsapp');
+
+        if (dbError) {
+          console.error('Error updating message in database:', dbError);
+        } else {
+          console.log('Message status updated to sent in database');
+        }
+      }
     }
 
     return new Response(
