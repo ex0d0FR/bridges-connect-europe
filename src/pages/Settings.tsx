@@ -7,8 +7,93 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { MessageTestCenter } from "@/components/MessageTestCenter"
 import { ConfigurationChecker } from "@/components/ConfigurationChecker"
+import { useForm } from "react-hook-form"
+import { useSettings } from "@/hooks/useSettings"
+import { useEffect } from "react"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 
 export default function Settings() {
+  const { settings, isLoading, saveSettings, isSaving } = useSettings();
+  
+  const generalForm = useForm({
+    defaultValues: {
+      organization_name: '',
+      primary_contact_email: '',
+      conference_date: '',
+    },
+  });
+
+  const emailForm = useForm({
+    defaultValues: {
+      sender_name: '',
+      sender_email: '',
+      sendgrid_api_key: '',
+    },
+  });
+
+  const messagingForm = useForm({
+    defaultValues: {
+      twilio_account_sid: '',
+      twilio_auth_token: '',
+      whatsapp_phone_number: '',
+    },
+  });
+
+  const integrationsForm = useForm({
+    defaultValues: {
+      google_maps_api_key: '',
+      apify_api_token: '',
+    },
+  });
+
+  // Load settings when data is available
+  useEffect(() => {
+    if (settings) {
+      generalForm.reset({
+        organization_name: settings.organization_name || '',
+        primary_contact_email: settings.primary_contact_email || '',
+        conference_date: settings.conference_date || '',
+      });
+      
+      emailForm.reset({
+        sender_name: settings.sender_name || '',
+        sender_email: settings.sender_email || '',
+        sendgrid_api_key: settings.sendgrid_api_key || '',
+      });
+      
+      messagingForm.reset({
+        twilio_account_sid: settings.twilio_account_sid || '',
+        twilio_auth_token: settings.twilio_auth_token || '',
+        whatsapp_phone_number: settings.whatsapp_phone_number || '',
+      });
+      
+      integrationsForm.reset({
+        google_maps_api_key: settings.google_maps_api_key || '',
+        apify_api_token: settings.apify_api_token || '',
+      });
+    }
+  }, [settings, generalForm, emailForm, messagingForm, integrationsForm]);
+
+  const onGeneralSubmit = (data: any) => {
+    saveSettings({ ...settings, ...data });
+  };
+
+  const onEmailSubmit = (data: any) => {
+    saveSettings({ ...settings, ...data });
+  };
+
+  const onMessagingSubmit = (data: any) => {
+    saveSettings({ ...settings, ...data });
+  };
+
+  const onIntegrationsSubmit = (data: any) => {
+    saveSettings({ ...settings, ...data });
+  };
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -45,32 +130,55 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="org-name">Organization Name</Label>
-                <Input 
-                  id="org-name" 
-                  placeholder="Missionary Bridges Conference"
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="contact-email">Primary Contact Email</Label>
-                <Input 
-                  id="contact-email" 
-                  type="email"
-                  placeholder="contact@missionarybridges.org"
-                />
-              </div>
+              <Form {...generalForm}>
+                <form onSubmit={generalForm.handleSubmit(onGeneralSubmit)} className="space-y-4">
+                  <FormField
+                    control={generalForm.control}
+                    name="organization_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Organization Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Missionary Bridges Conference" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={generalForm.control}
+                    name="primary_contact_email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primary Contact Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="contact@missionarybridges.org" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="grid gap-2">
-                <Label htmlFor="event-date">Conference Date</Label>
-                <Input 
-                  id="event-date" 
-                  placeholder="October 2024"
-                />
-              </div>
+                  <FormField
+                    control={generalForm.control}
+                    name="conference_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Conference Date</FormLabel>
+                        <FormControl>
+                          <Input placeholder="October 2024" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Button>Save Changes</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </TabsContent>
@@ -84,35 +192,57 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="sender-name">Sender Name</Label>
-                <Input 
-                  id="sender-name" 
-                  placeholder="Missionary Bridges Team"
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="sender-email">Sender Email</Label>
-                <Input 
-                  id="sender-email" 
-                  type="email"
-                  placeholder="invitations@missionarybridges.org"
-                />
-              </div>
+              <Form {...emailForm}>
+                <form onSubmit={emailForm.handleSubmit(onEmailSubmit)} className="space-y-4">
+                  <FormField
+                    control={emailForm.control}
+                    name="sender_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sender Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Missionary Bridges Team" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={emailForm.control}
+                    name="sender_email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sender Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="invitations@missionarybridges.org" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Separator />
-              
-              <div className="grid gap-2">
-                <Label htmlFor="sendgrid-key">SendGrid API Key</Label>
-                <Input 
-                  id="sendgrid-key" 
-                  type="password"
-                  placeholder="Enter your SendGrid API key"
-                />
-              </div>
+                  <Separator />
+                  
+                  <FormField
+                    control={emailForm.control}
+                    name="sendgrid_api_key"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>SendGrid API Key</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter your SendGrid API key" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Button>Save Email Settings</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Email Settings'}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </TabsContent>
@@ -126,32 +256,55 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="twilio-sid">Twilio Account SID</Label>
-                <Input 
-                  id="twilio-sid" 
-                  placeholder="Enter your Twilio Account SID"
-                />
-              </div>
-              
-              <div className="grid gap-2">
-                <Label htmlFor="twilio-token">Twilio Auth Token</Label>
-                <Input 
-                  id="twilio-token" 
-                  type="password"
-                  placeholder="Enter your Twilio Auth Token"
-                />
-              </div>
+              <Form {...messagingForm}>
+                <form onSubmit={messagingForm.handleSubmit(onMessagingSubmit)} className="space-y-4">
+                  <FormField
+                    control={messagingForm.control}
+                    name="twilio_account_sid"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Twilio Account SID</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter your Twilio Account SID" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={messagingForm.control}
+                    name="twilio_auth_token"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Twilio Auth Token</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter your Twilio Auth Token" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="grid gap-2">
-                <Label htmlFor="whatsapp-number">WhatsApp Business Number</Label>
-                <Input 
-                  id="whatsapp-number" 
-                  placeholder="+33 1 23 45 67 89"
-                />
-              </div>
+                  <FormField
+                    control={messagingForm.control}
+                    name="whatsapp_phone_number"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>WhatsApp Business Number</FormLabel>
+                        <FormControl>
+                          <Input placeholder="+33 1 23 45 67 89" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Button>Save Messaging Settings</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Messaging Settings'}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </TabsContent>
@@ -165,25 +318,41 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="google-api">Google Maps API Key</Label>
-                <Input 
-                  id="google-api" 
-                  type="password"
-                  placeholder="For church discovery via Google Maps"
-                />
-              </div>
+              <Form {...integrationsForm}>
+                <form onSubmit={integrationsForm.handleSubmit(onIntegrationsSubmit)} className="space-y-4">
+                  <FormField
+                    control={integrationsForm.control}
+                    name="google_maps_api_key"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Google Maps API Key</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="For church discovery via Google Maps" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <div className="grid gap-2">
-                <Label htmlFor="apify-token">Apify API Token</Label>
-                <Input 
-                  id="apify-token" 
-                  type="password"
-                  placeholder="For web scraping church directories"
-                />
-              </div>
+                  <FormField
+                    control={integrationsForm.control}
+                    name="apify_api_token"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Apify API Token</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="For web scraping church directories" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <Button>Save Integration Settings</Button>
+                  <Button type="submit" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Integration Settings'}
+                  </Button>
+                </form>
+              </Form>
             </CardContent>
           </Card>
         </TabsContent>

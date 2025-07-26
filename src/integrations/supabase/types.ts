@@ -249,6 +249,60 @@ export type Database = {
           },
         ]
       }
+      settings: {
+        Row: {
+          apify_api_token: string | null
+          conference_date: string | null
+          created_at: string
+          google_maps_api_key: string | null
+          id: string
+          organization_name: string | null
+          primary_contact_email: string | null
+          sender_email: string | null
+          sender_name: string | null
+          sendgrid_api_key: string | null
+          twilio_account_sid: string | null
+          twilio_auth_token: string | null
+          updated_at: string
+          user_id: string
+          whatsapp_phone_number: string | null
+        }
+        Insert: {
+          apify_api_token?: string | null
+          conference_date?: string | null
+          created_at?: string
+          google_maps_api_key?: string | null
+          id?: string
+          organization_name?: string | null
+          primary_contact_email?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sendgrid_api_key?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          updated_at?: string
+          user_id: string
+          whatsapp_phone_number?: string | null
+        }
+        Update: {
+          apify_api_token?: string | null
+          conference_date?: string | null
+          created_at?: string
+          google_maps_api_key?: string | null
+          id?: string
+          organization_name?: string | null
+          primary_contact_email?: string | null
+          sender_email?: string | null
+          sender_name?: string | null
+          sendgrid_api_key?: string | null
+          twilio_account_sid?: string | null
+          twilio_auth_token?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp_phone_number?: string | null
+        }
+        Relationships: []
+      }
       templates: {
         Row: {
           content: string
