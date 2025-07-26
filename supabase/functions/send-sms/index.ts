@@ -20,14 +20,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, content, templateId, campaignId, churchId }: SMSRequest = await req.json();
+    const { to, content, message, templateId, campaignId, churchId }: SMSRequest = await req.json();
+    
+    // Accept both 'content' and 'message' fields for compatibility
+    const messageContent = content || message;
     
     // Validate and format content
-    if (!content || content.trim() === '') {
+    if (!messageContent || messageContent.trim() === '') {
       throw new Error('Message content is required');
     }
     
-    const formattedContent = content.replace(/undefined/g, '').trim();
+    const formattedContent = messageContent.replace(/undefined/g, '').trim();
     
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
