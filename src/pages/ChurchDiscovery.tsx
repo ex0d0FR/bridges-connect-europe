@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateChurch } from "@/hooks/useChurches";
-import { Search, MapPin, Globe, Phone, Mail, Plus, Loader2 } from "lucide-react";
+import { Search, MapPin, Globe, Phone, Mail, Plus, Loader2, User, Star, Facebook, Instagram, Twitter } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -20,8 +20,20 @@ interface DiscoveredChurch {
   phone?: string;
   email?: string;
   website?: string;
+  contact_name?: string;
   denomination?: string;
   source: string;
+  confidence_score?: number;
+  social_media?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  };
+  additional_info?: {
+    description?: string;
+    services?: string[];
+    languages?: string[];
+  };
 }
 
 export default function ChurchDiscovery() {
@@ -31,6 +43,7 @@ export default function ChurchDiscovery() {
   const [progress, setProgress] = useState(0);
   const [selectedChurches, setSelectedChurches] = useState<Set<number>>(new Set());
   const [filterCatholic, setFilterCatholic] = useState(true);
+  const [enhancedDiscovery, setEnhancedDiscovery] = useState(true);
   const { toast } = useToast();
   const createChurch = useCreateChurch();
   const { t } = useLanguage();
@@ -59,7 +72,8 @@ export default function ChurchDiscovery() {
       const { data, error } = await supabase.functions.invoke('church-discovery', {
         body: { 
           location,
-          filterNonCatholic: filterCatholic 
+          filterNonCatholic: filterCatholic,
+          enableEnhancedDiscovery: enhancedDiscovery
         }
       });
 
@@ -126,12 +140,12 @@ export default function ChurchDiscovery() {
           email: church.email,
           phone: church.phone,
           website: church.website,
-          contact_name: '',
+          contact_name: church.contact_name || '',
           country: church.country || 'France',
           address: church.address,
           city: church.city,
           denomination: church.denomination,
-          notes: `Discovered via ${church.source}`,
+          notes: `Discovered via ${church.source}${church.confidence_score ? ` (Confidence: ${church.confidence_score}%)` : ''}`,
         };
       });
 
@@ -200,16 +214,30 @@ export default function ChurchDiscovery() {
             </Button>
           </div>
 
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="filter-catholic"
-              checked={filterCatholic}
-              onCheckedChange={setFilterCatholic}
-              disabled={isScanning}
-            />
-            <Label htmlFor="filter-catholic" className="text-sm">
-              Exclude Catholic churches from results
-            </Label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="filter-catholic"
+                checked={filterCatholic}
+                onCheckedChange={setFilterCatholic}
+                disabled={isScanning}
+              />
+              <Label htmlFor="filter-catholic" className="text-sm">
+                Exclude Catholic churches from results
+              </Label>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="enhanced-discovery"
+                checked={enhancedDiscovery}
+                onCheckedChange={setEnhancedDiscovery}
+                disabled={isScanning}
+              />
+              <Label htmlFor="enhanced-discovery" className="text-sm">
+                Enhanced discovery (website scraping for contact info)
+              </Label>
+            </div>
           </div>
 
           {isScanning && (
@@ -273,7 +301,7 @@ export default function ChurchDiscovery() {
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold">{church.name}</h3>
                           <Badge variant="secondary" className="text-xs">
                             {church.source}
@@ -283,6 +311,15 @@ export default function ChurchDiscovery() {
                               {church.denomination}
                             </Badge>
                           )}
+                          {church.confidence_score !== undefined && (
+                            <Badge 
+                              variant={church.confidence_score > 70 ? "default" : church.confidence_score > 50 ? "secondary" : "destructive"} 
+                              className="text-xs flex items-center gap-1"
+                            >
+                              <Star className="h-2 w-2" />
+                              {church.confidence_score}%
+                            </Badge>
+                          )}
                         </div>
                         
                         <div className="grid gap-1 text-sm text-muted-foreground">
@@ -290,6 +327,12 @@ export default function ChurchDiscovery() {
                             <div className="flex items-center gap-2">
                               <MapPin className="h-3 w-3" />
                               <span>{church.address}</span>
+                            </div>
+                          )}
+                          {church.contact_name && (
+                            <div className="flex items-center gap-2">
+                              <User className="h-3 w-3" />
+                              <span>{church.contact_name}</span>
                             </div>
                           )}
                           {church.phone && (
@@ -308,6 +351,46 @@ export default function ChurchDiscovery() {
                             <div className="flex items-center gap-2">
                               <Globe className="h-3 w-3" />
                               <span className="truncate">{church.website}</span>
+                            </div>
+                          )}
+                          {church.social_media && (
+                            <div className="flex items-center gap-3 mt-1">
+                              {church.social_media.facebook && (
+                                <a 
+                                  href={church.social_media.facebook} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800"
+                                >
+                                  <Facebook className="h-3 w-3" />
+                                  <span className="text-xs">Facebook</span>
+                                </a>
+                              )}
+                              {church.social_media.instagram && (
+                                <a 
+                                  href={church.social_media.instagram} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1 text-pink-600 hover:text-pink-800"
+                                >
+                                  <Instagram className="h-3 w-3" />
+                                  <span className="text-xs">Instagram</span>
+                                </a>
+                              )}
+                              {church.social_media.twitter && (
+                                <a 
+                                  href={church.social_media.twitter} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1 text-blue-400 hover:text-blue-600"
+                                >
+                                  <Twitter className="h-3 w-3" />
+                                  <span className="text-xs">Twitter</span>
+                                </a>
+                              )}
                             </div>
                           )}
                         </div>

@@ -8,6 +8,7 @@ const corsHeaders = {
 interface ChurchDiscoveryRequest {
   location: string;
   filterNonCatholic?: boolean;
+  enableEnhancedDiscovery?: boolean;
 }
 
 interface DiscoveredChurch {
@@ -21,6 +22,29 @@ interface DiscoveredChurch {
   contact_name?: string;
   denomination?: string;
   source: string;
+  confidence_score?: number;
+  social_media?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  };
+  additional_info?: {
+    description?: string;
+    services?: string[];
+    languages?: string[];
+  };
+}
+
+interface ChurchEnrichmentData {
+  emails: string[];
+  phones: string[];
+  social_media: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  };
+  contact_persons: string[];
+  additional_info: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -29,18 +53,21 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { location, filterNonCatholic = true }: ChurchDiscoveryRequest = await req.json();
+    const { location, filterNonCatholic = true, enableEnhancedDiscovery = false }: ChurchDiscoveryRequest = await req.json();
     
-    console.log(`Starting church discovery for location: ${location}`);
+    console.log(`Starting church discovery for location: ${location} (Enhanced: ${enableEnhancedDiscovery})`);
     
     let allChurches: DiscoveredChurch[] = [];
 
     const serpApiKey = Deno.env.get('SERPAPI_KEY');
+    const apifyApiKey = Deno.env.get('APIFY_API_KEY');
+    
     if (!serpApiKey) {
       throw new Error('SerpApi key not configured');
     }
 
     console.log('SERPAPI_KEY available:', !!serpApiKey);
+    console.log('APIFY_API_KEY available:', !!apifyApiKey);
     console.log(`Starting real data collection with SerpApi for: ${location}`);
     
     // Determine language and region based on location
@@ -181,6 +208,15 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
     }
+
+    // Enhanced discovery phase - enrich data for churches with websites
+    if (enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
+      console.log('Starting enhanced discovery phase...');
+      allChurches = await enrichChurchData(allChurches, apifyApiKey);
+    }
+
+    // Add confidence scores
+    allChurches = addConfidenceScores(allChurches);
 
     // Remove duplicates based on name similarity
     const uniqueChurches = removeDuplicates(allChurches);
@@ -442,6 +478,236 @@ function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
     }
     seen.add(key);
     return true;
+  });
+}
+
+// Enhanced data enrichment functions
+async function enrichChurchData(churches: DiscoveredChurch[], apifyApiKey: string): Promise<DiscoveredChurch[]> {
+  console.log(`Starting enrichment for ${churches.length} churches`);
+  const enrichedChurches: DiscoveredChurch[] = [];
+  
+  // Process churches in batches to avoid overwhelming the API
+  const batchSize = 5;
+  const batches = [];
+  for (let i = 0; i < churches.length; i += batchSize) {
+    batches.push(churches.slice(i, i + batchSize));
+  }
+  
+  for (const batch of batches) {
+    const batchPromises = batch.map(church => enrichSingleChurch(church, apifyApiKey));
+    const batchResults = await Promise.allSettled(batchPromises);
+    
+    batchResults.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        enrichedChurches.push(result.value);
+      } else {
+        console.error(`Failed to enrich church ${batch[index].name}:`, result.reason);
+        enrichedChurches.push(batch[index]); // Keep original data
+      }
+    });
+    
+    // Small delay between batches
+    if (batches.indexOf(batch) < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
+  
+  return enrichedChurches;
+}
+
+async function enrichSingleChurch(church: DiscoveredChurch, apifyApiKey: string): Promise<DiscoveredChurch> {
+  if (!church.website) {
+    console.log(`Skipping enrichment for ${church.name} - no website`);
+    return church;
+  }
+  
+  try {
+    console.log(`Enriching data for ${church.name} via ${church.website}`);
+    
+    // Use Apify Website Content Crawler for comprehensive data extraction
+    const apifyResponse = await fetch('https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apifyApiKey}`,
+      },
+      body: JSON.stringify({
+        startUrls: [{ url: church.website }],
+        crawlerType: 'playwright:chromium',
+        includeUrlGlobs: [{ glob: `${new URL(church.website).origin}/*` }],
+        maxCrawlDepth: 2,
+        maxCrawlPages: 5,
+        dynamicContentWaitSecs: 3,
+        removeCookieWarnings: true,
+        clickElementsCssSelector: '[aria-label*="cookie" i] button, [class*="cookie" i] button, [id*="cookie" i] button',
+      }),
+    });
+    
+    if (!apifyResponse.ok) {
+      console.error(`Apify API error for ${church.name}: ${apifyResponse.status}`);
+      return church;
+    }
+    
+    const scrapedData = await apifyResponse.json();
+    console.log(`Apify returned ${scrapedData.length} pages for ${church.name}`);
+    
+    if (scrapedData.length > 0) {
+      const enrichmentData = extractEnrichmentData(scrapedData);
+      return mergeEnrichmentData(church, enrichmentData);
+    }
+    
+    return church;
+  } catch (error) {
+    console.error(`Error enriching ${church.name}:`, error);
+    return church;
+  }
+}
+
+function extractEnrichmentData(scrapedData: any[]): ChurchEnrichmentData {
+  const enrichment: ChurchEnrichmentData = {
+    emails: [],
+    phones: [],
+    social_media: {},
+    contact_persons: [],
+    additional_info: ''
+  };
+  
+  let allText = '';
+  
+  scrapedData.forEach(page => {
+    const text = page.text || '';
+    allText += ' ' + text;
+    
+    // Extract emails with improved patterns
+    const emailMatches = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g);
+    if (emailMatches) {
+      enrichment.emails.push(...emailMatches.filter(email => 
+        !email.includes('example.com') && 
+        !email.includes('domain.com') &&
+        !email.includes('yourchurch.com')
+      ));
+    }
+    
+    // Extract phone numbers with international support
+    const phoneMatches = text.match(/(?:\+\d{1,3}[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4,}/g);
+    if (phoneMatches) {
+      enrichment.phones.push(...phoneMatches);
+    }
+    
+    // Extract social media links
+    const socialLinks = text.match(/(?:https?:\/\/)?(?:www\.)?(?:facebook|instagram|twitter|youtube)\.com\/[\w\-\.]+/gi);
+    if (socialLinks) {
+      socialLinks.forEach(link => {
+        if (link.includes('facebook')) {
+          enrichment.social_media.facebook = link;
+        } else if (link.includes('instagram')) {
+          enrichment.social_media.instagram = link;
+        } else if (link.includes('twitter')) {
+          enrichment.social_media.twitter = link;
+        }
+      });
+    }
+    
+    // Extract contact persons with expanded patterns
+    const contactPatterns = [
+      /(pastor|reverend|minister|priest|father|dr\.?|rev\.?)\s+([a-z\s]{2,30})/gi,
+      /(director|coordinator|secretary|administrator)\s*:?\s*([a-z\s]{2,30})/gi,
+      /contact\s*:?\s*([a-z\s]{2,30})/gi
+    ];
+    
+    contactPatterns.forEach(pattern => {
+      const matches = text.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const namePart = match.split(/[:]/)[1] || match.split(/\s+/).slice(1).join(' ');
+          if (namePart && namePart.trim().length > 2) {
+            enrichment.contact_persons.push(namePart.trim());
+          }
+        });
+      }
+    });
+  });
+  
+  // Clean and deduplicate
+  enrichment.emails = [...new Set(enrichment.emails)];
+  enrichment.phones = [...new Set(enrichment.phones)];
+  enrichment.contact_persons = [...new Set(enrichment.contact_persons)];
+  enrichment.additional_info = allText.substring(0, 500); // Keep first 500 chars for context
+  
+  return enrichment;
+}
+
+function mergeEnrichmentData(church: DiscoveredChurch, enrichmentData: ChurchEnrichmentData): DiscoveredChurch {
+  const enriched: DiscoveredChurch = { ...church };
+  
+  // Update email if we found a better one
+  if (enrichmentData.emails.length > 0 && !enriched.email) {
+    enriched.email = enrichmentData.emails[0];
+  }
+  
+  // Update phone if we found a better one
+  if (enrichmentData.phones.length > 0 && !enriched.phone) {
+    enriched.phone = enrichmentData.phones[0];
+  }
+  
+  // Update contact name if we found one
+  if (enrichmentData.contact_persons.length > 0 && !enriched.contact_name) {
+    enriched.contact_name = enrichmentData.contact_persons[0];
+  }
+  
+  // Add social media
+  if (Object.keys(enrichmentData.social_media).length > 0) {
+    enriched.social_media = enrichmentData.social_media;
+  }
+  
+  // Add additional info
+  enriched.additional_info = {
+    description: enrichmentData.additional_info.substring(0, 200),
+    services: [], // Could be extracted with more sophisticated parsing
+    languages: [] // Could be detected from content
+  };
+  
+  // Update source to indicate enrichment
+  enriched.source = `${church.source} + Website Enrichment`;
+  
+  return enriched;
+}
+
+function addConfidenceScores(churches: DiscoveredChurch[]): DiscoveredChurch[] {
+  return churches.map(church => {
+    let score = 0;
+    
+    // Base score
+    score += 10;
+    
+    // Contact information scoring
+    if (church.email) score += 25;
+    if (church.phone) score += 20;
+    if (church.website) score += 15;
+    if (church.contact_name) score += 15;
+    
+    // Address information
+    if (church.address) score += 10;
+    if (church.city) score += 5;
+    
+    // Social media presence
+    if (church.social_media?.facebook) score += 5;
+    if (church.social_media?.instagram) score += 3;
+    
+    // Data source reliability
+    if (church.source.includes('Website Enrichment')) score += 10;
+    if (church.source.includes('Fallback Data')) score -= 30;
+    
+    // Denomination specificity
+    if (church.denomination && church.denomination !== 'Other Protestant') score += 5;
+    
+    // Cap at 100
+    score = Math.min(100, Math.max(0, score));
+    
+    return {
+      ...church,
+      confidence_score: score
+    };
   });
 }
 
