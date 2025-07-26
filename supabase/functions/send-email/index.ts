@@ -56,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
         to: [{ email: to }],
         subject: subject
       }],
-      from: { email: "noreply@missionarybridges.org", name: "Missionary Bridges" },
+      from: { email: "onboarding@resend.dev", name: "Missionary Bridges" },
       content: [{
         type: "text/html",
         value: content

@@ -62,7 +62,7 @@ export function MessageTestCenter() {
           to: emailForm.to,
           subject: emailForm.subject,
           content: emailForm.content,
-          churchId: 'test-church-id'
+          churchId: '00000000-0000-0000-0000-000000000000'
         }
       })
 
@@ -116,7 +116,7 @@ export function MessageTestCenter() {
         body: {
           to: smsForm.to,
           content: smsForm.content,
-          churchId: 'test-church-id'
+          churchId: '00000000-0000-0000-0000-000000000000'
         }
       })
 
