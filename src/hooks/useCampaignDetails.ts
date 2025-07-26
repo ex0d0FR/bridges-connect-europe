@@ -194,7 +194,7 @@ export const useRetryFailedMessages = () => {
               functionName = 'send-sms'
               requestBody = {
                 to: message.recipient_phone,
-                content: message.content,
+                message: message.content, // Use 'message' instead of 'content' for SMS
                 templateId: message.template_id,
                 campaignId: message.campaign_id,
                 churchId: message.church_id
