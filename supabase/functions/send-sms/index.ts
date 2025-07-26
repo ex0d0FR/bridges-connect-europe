@@ -11,7 +11,8 @@ interface SMSRequest {
   content: string;
   templateId?: string;
   campaignId?: string;
-  churchId: string;
+  churchId?: string;
+  isTest?: boolean;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -20,7 +21,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, content, message, templateId, campaignId, churchId }: SMSRequest = await req.json();
+    const { to, content, message, templateId, campaignId, churchId, isTest }: SMSRequest = await req.json();
     
     // Accept both 'content' and 'message' fields for compatibility
     const messageContent = content || message;
@@ -87,8 +88,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const twilioData = await twilioResponse.json();
     
-    // Log message to database only if churchId is provided and valid
-    if (churchId && churchId !== '00000000-0000-0000-0000-000000000000') {
+    // Log message to database only if not a test and churchId is provided and valid
+    if (!isTest && churchId && churchId !== '00000000-0000-0000-0000-000000000000') {
       // Verify church exists before logging
       const { data: church, error: churchError } = await supabase
         .from('churches')
@@ -118,8 +119,10 @@ const handler = async (req: Request): Promise<Response> => {
       } else {
         console.warn(`Church ID ${churchId} not found, skipping database logging`);
       }
-    } else {
+    } else if (!isTest) {
       console.warn('Invalid or missing church ID, skipping database logging');
+    } else {
+      console.log('Test message - skipping database logging');
     }
 
     console.log(`SMS sent successfully to ${to}`);

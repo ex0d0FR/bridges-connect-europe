@@ -54,7 +54,8 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         functionName = 'send-sms'
         body = {
           to: formData.phone,
-          message: template.content,
+          content: template.content,
+          churchId: '00000000-0000-0000-0000-000000000000', // Test church ID
           isTest: true
         }
       } else if (template.type === 'whatsapp') {
@@ -63,8 +64,9 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         }
         functionName = 'send-whatsapp'
         body = {
-          to: formData.phone,
-          message: template.content,
+          recipient_phone: formData.phone,
+          message_body: template.content,
+          message_type: 'text',
           isTest: true
         }
       } else {

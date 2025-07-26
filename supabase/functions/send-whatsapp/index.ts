@@ -13,6 +13,7 @@ interface WhatsAppMessage {
   template_components?: any[]
   message_body?: string
   message_type: 'template' | 'text'
+  isTest?: boolean
 }
 
 serve(async (req) => {
@@ -60,7 +61,7 @@ serve(async (req) => {
       throw new Error(`Authentication failed: ${authError?.message || 'No user found'}`);
     }
 
-    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type }: WhatsAppMessage = await req.json()
+    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest }: WhatsAppMessage = await req.json()
 
     // WhatsApp Business API configuration
     const whatsappApiUrl = `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`
@@ -127,6 +128,11 @@ serve(async (req) => {
     }
 
     console.log('WhatsApp message sent successfully:', whatsappResult)
+
+    // For test messages, we don't log to database
+    if (isTest) {
+      console.log('Test message - skipping database logging');
+    }
 
     return new Response(
       JSON.stringify({
