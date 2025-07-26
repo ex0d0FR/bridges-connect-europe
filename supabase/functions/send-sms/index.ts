@@ -22,6 +22,13 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { to, content, templateId, campaignId, churchId }: SMSRequest = await req.json();
     
+    // Validate and format content
+    if (!content || content.trim() === '') {
+      throw new Error('Message content is required');
+    }
+    
+    const formattedContent = content.replace(/undefined/g, '').trim();
+    
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
@@ -59,7 +66,7 @@ const handler = async (req: Request): Promise<Response> => {
     const formData = new URLSearchParams();
     formData.append('From', twilioPhoneNumber);
     formData.append('To', to);
-    formData.append('Body', content);
+    formData.append('Body', formattedContent);
 
     const twilioResponse = await fetch(twilioUrl, {
       method: 'POST',
@@ -85,7 +92,7 @@ const handler = async (req: Request): Promise<Response> => {
         church_id: churchId,
         campaign_id: campaignId,
         template_id: templateId,
-        content: content,
+        content: formattedContent,
         recipient_phone: to,
         status: twilioData.status === 'queued' ? 'sent' : 'failed',
         external_id: twilioData.sid,
