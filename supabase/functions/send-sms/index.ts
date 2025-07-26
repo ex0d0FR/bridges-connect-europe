@@ -87,24 +87,39 @@ const handler = async (req: Request): Promise<Response> => {
 
     const twilioData = await twilioResponse.json();
     
-    // Log message to database
-    const { error: dbError } = await supabase
-      .from('messages')
-      .insert({
-        type: 'sms',
-        church_id: churchId,
-        campaign_id: campaignId,
-        template_id: templateId,
-        content: formattedContent,
-        recipient_phone: to,
-        status: twilioData.status === 'queued' ? 'sent' : 'failed',
-        external_id: twilioData.sid,
-        sent_at: new Date().toISOString(),
-        created_by: user.id
-      });
+    // Log message to database only if churchId is provided and valid
+    if (churchId && churchId !== '00000000-0000-0000-0000-000000000000') {
+      // Verify church exists before logging
+      const { data: church, error: churchError } = await supabase
+        .from('churches')
+        .select('id')
+        .eq('id', churchId)
+        .single();
 
-    if (dbError) {
-      console.error('Error logging message to database:', dbError);
+      if (!churchError && church) {
+        const { error: dbError } = await supabase
+          .from('messages')
+          .insert({
+            type: 'sms',
+            church_id: churchId,
+            campaign_id: campaignId,
+            template_id: templateId,
+            content: formattedContent,
+            recipient_phone: to,
+            status: twilioData.status === 'queued' ? 'sent' : 'failed',
+            external_id: twilioData.sid,
+            sent_at: new Date().toISOString(),
+            created_by: user.id
+          });
+
+        if (dbError) {
+          console.error('Error logging message to database:', dbError);
+        }
+      } else {
+        console.warn(`Church ID ${churchId} not found, skipping database logging`);
+      }
+    } else {
+      console.warn('Invalid or missing church ID, skipping database logging');
     }
 
     console.log(`SMS sent successfully to ${to}`);
