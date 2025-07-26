@@ -133,27 +133,6 @@ serve(async (req) => {
     // For test messages, we don't log to database
     if (isTest) {
       console.log('Test message - skipping database logging');
-    } else {
-      // Log message to database for campaign messages      
-      if (templateId && campaignId && churchId) {
-        const { error: dbError } = await supabaseClient
-          .from('messages')
-          .update({
-            status: 'sent',
-            external_id: whatsappResult.messages?.[0]?.id,
-            sent_at: new Date().toISOString()
-          })
-          .eq('template_id', templateId)
-          .eq('campaign_id', campaignId)
-          .eq('church_id', churchId)
-          .eq('type', 'whatsapp');
-
-        if (dbError) {
-          console.error('Error updating message in database:', dbError);
-        } else {
-          console.log('Message status updated to sent in database');
-        }
-      }
     }
 
     return new Response(
