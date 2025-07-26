@@ -22,7 +22,10 @@ const handler = async (req: Request): Promise<Response> => {
     
     // Get auth header for Supabase
     const authHeader = req.headers.get('Authorization');
+    console.log('Analytics: Auth header received:', authHeader ? 'present' : 'missing');
+    
     if (!authHeader) {
+      console.error('Analytics: No authorization header found');
       throw new Error('No authorization header');
     }
 
@@ -30,6 +33,10 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     
     if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Analytics: Supabase configuration missing', { 
+        hasUrl: !!supabaseUrl, 
+        hasKey: !!supabaseAnonKey 
+      });
       throw new Error('Supabase configuration missing');
     }
 
@@ -39,8 +46,12 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Get user ID from auth
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+    console.log('Analytics: User data:', user ? { id: user.id, email: user.email } : 'null');
+    console.log('Analytics: Auth error:', authError);
+    
     if (authError || !user) {
-      throw new Error('Authentication failed');
+      console.error('Analytics: Authentication failed:', authError?.message || 'No user found');
+      throw new Error(`Authentication failed: ${authError?.message || 'No user found'}`);
     }
 
     let analytics: any = {};

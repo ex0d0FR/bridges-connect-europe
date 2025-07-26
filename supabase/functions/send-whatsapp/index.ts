@@ -118,20 +118,50 @@ serve(async (req) => {
     const whatsappResult = await whatsappResponse.json()
 
     if (!whatsappResponse.ok) {
-      console.error('WhatsApp API error:', whatsappResult)
+      console.error('WhatsApp API error details:', {
+        status: whatsappResponse.status,
+        statusText: whatsappResponse.statusText,
+        response: whatsappResult,
+        phoneNumber: recipient_phone,
+        phoneNumberId: Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+      })
       
       // Check for specific token expiration error
       if (whatsappResult.error?.code === 190) {
         throw new Error(`WhatsApp access token has expired. Please update your token in the settings. Error: ${whatsappResult.error.message}`)
       }
       
-      throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'}`)
+      // Check for invalid phone number format
+      if (whatsappResult.error?.code === 131000) {
+        throw new Error(`Invalid phone number format: ${recipient_phone}. Please use international format (+country_code_phone_number)`)
+      }
+      
+      throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'} (Code: ${whatsappResult.error?.code || 'unknown'})`)
     }
 
     console.log('WhatsApp message sent successfully:', whatsappResult)
 
-    // For test messages, we don't log to database
-    if (isTest) {
+    // Log to database if not a test message
+    if (!isTest && churchId && campaignId) {
+      const { error: dbError } = await supabaseClient
+        .from('messages')
+        .insert({
+          type: 'whatsapp',
+          church_id: churchId,
+          campaign_id: campaignId,
+          template_id: templateId,
+          content: message_body,
+          recipient_phone: recipient_phone,
+          status: 'sent',
+          external_id: whatsappResult.messages?.[0]?.id,
+          sent_at: new Date().toISOString(),
+          created_by: user.id
+        });
+
+      if (dbError) {
+        console.error('Error logging WhatsApp message to database:', dbError);
+      }
+    } else {
       console.log('Test message - skipping database logging');
     }
 
