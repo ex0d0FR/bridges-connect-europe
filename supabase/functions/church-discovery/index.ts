@@ -38,13 +38,8 @@ interface DiscoveredChurch {
 interface ChurchEnrichmentData {
   emails: string[];
   phones: string[];
-  social_media: {
-    facebook?: string;
-    instagram?: string;
-    twitter?: string;
-  };
-  contact_persons: string[];
-  additional_info: string;
+  socialMedia: string[];
+  contactPersons: string[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -483,32 +478,32 @@ function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
 
 // Enhanced data enrichment functions
 async function enrichChurchData(churches: DiscoveredChurch[], apifyApiKey: string): Promise<DiscoveredChurch[]> {
-  console.log(`Starting enrichment for ${churches.length} churches`);
+  console.log(`Starting enhanced data enrichment for ${churches.length} churches`);
+  
+  // Process in smaller batches to avoid rate limits
+  const batchSize = 3;
   const enrichedChurches: DiscoveredChurch[] = [];
   
-  // Process churches in batches to avoid overwhelming the API
-  const batchSize = 5;
-  const batches = [];
   for (let i = 0; i < churches.length; i += batchSize) {
-    batches.push(churches.slice(i, i + batchSize));
-  }
-  
-  for (const batch of batches) {
-    const batchPromises = batch.map(church => enrichSingleChurch(church, apifyApiKey));
-    const batchResults = await Promise.allSettled(batchPromises);
+    const batch = churches.slice(i, i + batchSize);
     
-    batchResults.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        enrichedChurches.push(result.value);
-      } else {
-        console.error(`Failed to enrich church ${batch[index].name}:`, result.reason);
-        enrichedChurches.push(batch[index]); // Keep original data
+    // Process churches sequentially within each batch to avoid rate limits
+    for (const church of batch) {
+      try {
+        const enrichedChurch = await enrichSingleChurch(church, apifyApiKey);
+        enrichedChurches.push(enrichedChurch);
+        
+        // Add delay between individual requests
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } catch (error) {
+        console.error(`Failed to enrich church ${church.name}:`, error);
+        enrichedChurches.push(church); // Keep original data
       }
-    });
+    }
     
-    // Small delay between batches
-    if (batches.indexOf(batch) < batches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    // Add longer delay between batches
+    if (i + batchSize < churches.length) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
   }
   
@@ -520,155 +515,272 @@ async function enrichSingleChurch(church: DiscoveredChurch, apifyApiKey: string)
     console.log(`Skipping enrichment for ${church.name} - no website`);
     return church;
   }
+
+  console.log(`Enriching data for ${church.name} via ${church.website}`);
   
   try {
-    console.log(`Enriching data for ${church.name} via ${church.website}`);
+    // Try Apify first, fallback to direct scraping
+    let enrichmentData: ChurchEnrichmentData;
     
-    // Use Apify Website Content Crawler for comprehensive data extraction
-    const apifyResponse = await fetch('https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apifyApiKey}`,
-      },
-      body: JSON.stringify({
-        startUrls: [{ url: church.website }],
-        crawlerType: 'playwright:chromium',
-        includeUrlGlobs: [{ glob: `${new URL(church.website).origin}/*` }],
-        maxCrawlDepth: 2,
-        maxCrawlPages: 5,
-        dynamicContentWaitSecs: 3,
-        removeCookieWarnings: true,
-        clickElementsCssSelector: '[aria-label*="cookie" i] button, [class*="cookie" i] button, [id*="cookie" i] button',
-      }),
-    });
-    
-    if (!apifyResponse.ok) {
-      console.error(`Apify API error for ${church.name}: ${apifyResponse.status}`);
-      return church;
+    try {
+      enrichmentData = await scrapeWithApify(church.website, apifyApiKey);
+      console.log(`Apify enrichment successful for ${church.name}`);
+    } catch (apifyError) {
+      console.log(`Apify failed for ${church.name}, trying direct scraping:`, apifyError);
+      enrichmentData = await scrapeDirectly(church.website);
     }
     
-    const scrapedData = await apifyResponse.json();
-    console.log(`Apify returned ${scrapedData.length} pages for ${church.name}`);
-    
-    if (scrapedData.length > 0) {
-      const enrichmentData = extractEnrichmentData(scrapedData);
-      return mergeEnrichmentData(church, enrichmentData);
-    }
-    
-    return church;
+    return mergeEnrichmentData(church, enrichmentData);
   } catch (error) {
-    console.error(`Error enriching ${church.name}:`, error);
+    console.error(`Error enriching data for ${church.name}:`, error);
     return church;
   }
 }
 
+async function scrapeWithApify(website: string, apifyApiKey: string): Promise<ChurchEnrichmentData> {
+  const response = await fetch('https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apifyApiKey}`,
+    },
+    body: JSON.stringify({
+      startUrls: [{ url: website }],
+      linkSelector: 'a[href*="contact"], a[href*="about"], a[href*="staff"]',
+      pageFunction: `async function pageFunction(context) {
+        const { page, request } = context;
+        
+        const title = await page.title();
+        const content = await page.evaluate(() => {
+          // Focus on contact-related content
+          const contactSections = document.querySelectorAll('[class*="contact" i], [id*="contact" i], [class*="about" i], [id*="about" i]');
+          let text = document.body.innerText || '';
+          
+          contactSections.forEach(section => {
+            text += ' ' + section.innerText;
+          });
+          
+          return text;
+        });
+        
+        return {
+          url: request.url,
+          title,
+          content: content.substring(0, 8000)
+        };
+      }`,
+      maxRequestRetries: 1,
+      maxRequestsPerCrawl: 3,
+      maxCrawlingDepth: 1,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Apify API error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  const scrapedData = await response.json();
+  return extractEnrichmentData(scrapedData);
+}
+
+async function scrapeDirectly(website: string): Promise<ChurchEnrichmentData> {
+  try {
+    console.log(`Direct scraping for ${website}`);
+    const response = await fetch(website, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ChurchDiscovery/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      },
+      signal: AbortSignal.timeout(15000), // 15 second timeout
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    
+    const html = await response.text();
+    return extractEnrichmentDataFromHtml(html);
+  } catch (error) {
+    console.error(`Direct scraping failed for ${website}:`, error);
+    return { emails: [], phones: [], socialMedia: [], contactPersons: [] };
+  }
+}
+
 function extractEnrichmentData(scrapedData: any[]): ChurchEnrichmentData {
-  const enrichment: ChurchEnrichmentData = {
-    emails: [],
-    phones: [],
-    social_media: {},
-    contact_persons: [],
-    additional_info: ''
+  const emails: string[] = [];
+  const phones: string[] = [];
+  const socialMedia: string[] = [];
+  const contactPersons: string[] = [];
+
+  scrapedData.forEach(item => {
+    if (item.content || item.text) {
+      const text = item.content || item.text || '';
+      const enrichmentData = extractEnrichmentDataFromHtml(text);
+      
+      emails.push(...enrichmentData.emails);
+      phones.push(...enrichmentData.phones);
+      socialMedia.push(...enrichmentData.socialMedia);
+      contactPersons.push(...enrichmentData.contactPersons);
+    }
+  });
+
+  // Remove duplicates
+  return {
+    emails: [...new Set(emails)],
+    phones: [...new Set(phones)],
+    socialMedia: [...new Set(socialMedia)],
+    contactPersons: [...new Set(contactPersons)],
   };
+}
+
+function extractEnrichmentDataFromHtml(html: string): ChurchEnrichmentData {
+  const emails: string[] = [];
+  const phones: string[] = [];
+  const socialMedia: string[] = [];
+  const contactPersons: string[] = [];
   
-  let allText = '';
+  // Enhanced email extraction patterns
+  const emailPatterns = [
+    // Standard emails
+    /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
+    // Obfuscated emails (at/dot)
+    /\b[A-Za-z0-9._%+-]+\s*(?:\[at\]|@|\(at\))\s*[A-Za-z0-9.-]+\s*(?:\[dot\]|\.|\.)\s*[A-Z|a-z]{2,}/gi,
+    // Mailto links
+    /mailto:([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,})/gi
+  ];
   
-  scrapedData.forEach(page => {
-    const text = page.text || '';
-    allText += ' ' + text;
-    
-    // Extract emails with improved patterns
-    const emailMatches = text.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g);
-    if (emailMatches) {
-      enrichment.emails.push(...emailMatches.filter(email => 
-        !email.includes('example.com') && 
-        !email.includes('domain.com') &&
-        !email.includes('yourchurch.com')
-      ));
-    }
-    
-    // Extract phone numbers with international support
-    const phoneMatches = text.match(/(?:\+\d{1,3}[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4,}/g);
-    if (phoneMatches) {
-      enrichment.phones.push(...phoneMatches);
-    }
-    
-    // Extract social media links
-    const socialLinks = text.match(/(?:https?:\/\/)?(?:www\.)?(?:facebook|instagram|twitter|youtube)\.com\/[\w\-\.]+/gi);
-    if (socialLinks) {
-      socialLinks.forEach(link => {
-        if (link.includes('facebook')) {
-          enrichment.social_media.facebook = link;
-        } else if (link.includes('instagram')) {
-          enrichment.social_media.instagram = link;
-        } else if (link.includes('twitter')) {
-          enrichment.social_media.twitter = link;
+  emailPatterns.forEach(pattern => {
+    const matches = html.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        // Clean up obfuscated emails
+        const cleanEmail = match
+          .replace(/\[at\]|\(at\)/gi, '@')
+          .replace(/\[dot\]/gi, '.')
+          .replace(/mailto:/gi, '')
+          .trim();
+          
+        if (cleanEmail.includes('@') && 
+            !cleanEmail.includes('noreply') && 
+            !cleanEmail.includes('example') &&
+            !cleanEmail.includes('placeholder') &&
+            !cleanEmail.includes('test@') &&
+            !cleanEmail.includes('yourchurch') &&
+            !cleanEmail.includes('domain.com')) {
+          emails.push(cleanEmail);
         }
       });
     }
-    
-    // Extract contact persons with expanded patterns
-    const contactPatterns = [
-      /(pastor|reverend|minister|priest|father|dr\.?|rev\.?)\s+([a-z\s]{2,30})/gi,
-      /(director|coordinator|secretary|administrator)\s*:?\s*([a-z\s]{2,30})/gi,
-      /contact\s*:?\s*([a-z\s]{2,30})/gi
-    ];
-    
-    contactPatterns.forEach(pattern => {
-      const matches = text.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          const namePart = match.split(/[:]/)[1] || match.split(/\s+/).slice(1).join(' ');
-          if (namePart && namePart.trim().length > 2) {
-            enrichment.contact_persons.push(namePart.trim());
-          }
-        });
-      }
-    });
   });
   
-  // Clean and deduplicate
-  enrichment.emails = [...new Set(enrichment.emails)];
-  enrichment.phones = [...new Set(enrichment.phones)];
-  enrichment.contact_persons = [...new Set(enrichment.contact_persons)];
-  enrichment.additional_info = allText.substring(0, 500); // Keep first 500 chars for context
+  // Enhanced phone extraction
+  const phonePatterns = [
+    // US/International formats
+    /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+    // International with country code
+    /\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g,
+    // European formats
+    /(?:\+33|0)[1-9](?:[.\s-]?\d{2}){4}/g,
+    /(?:\+34|0)\d{2,3}[.\s-]?\d{3}[.\s-]?\d{3}/g,
+    // Tel links
+    /tel:([+\d\s\-\(\)]+)/gi
+  ];
   
-  return enrichment;
+  phonePatterns.forEach(pattern => {
+    const matches = html.match(pattern);
+    if (matches) {
+      phones.push(...matches.map(phone => phone.replace(/tel:/gi, '').trim()));
+    }
+  });
+  
+  // Social media extraction
+  const socialPatterns = [
+    /(?:https?:\/\/)?(?:www\.)?facebook\.com\/[^\s"'<>]+/gi,
+    /(?:https?:\/\/)?(?:www\.)?instagram\.com\/[^\s"'<>]+/gi,
+    /(?:https?:\/\/)?(?:www\.)?twitter\.com\/[^\s"'<>]+/gi,
+    /(?:https?:\/\/)?(?:www\.)?youtube\.com\/[^\s"'<>]+/gi,
+    /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s"'<>]+/gi
+  ];
+  
+  socialPatterns.forEach(pattern => {
+    const matches = html.match(pattern);
+    if (matches) {
+      socialMedia.push(...matches.map(url => url.startsWith('http') ? url : `https://${url}`));
+    }
+  });
+  
+  // Enhanced contact person extraction
+  const contactPatterns = [
+    /(?:Pastor|Rev\.|Reverend|Minister|Father|Pr\.|Dr\.|Elder|Deacon)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g,
+    /Contact\s*(?:Person|Name)?:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /Lead\s+Pastor:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /Senior\s+Pastor:?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi,
+    /(?:Pasteur|Père|Ministre)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi, // French
+    /(?:Pastor|Padre|Ministro)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/gi // Spanish
+  ];
+  
+  contactPatterns.forEach(pattern => {
+    const matches = html.match(pattern);
+    if (matches) {
+      contactPersons.push(...matches.map(match => {
+        const parts = match.split(/[:]/);
+        return parts.length > 1 ? parts[1].trim() : match.trim();
+      }));
+    }
+  });
+
+  return {
+    emails: [...new Set(emails)],
+    phones: [...new Set(phones)],
+    socialMedia: [...new Set(socialMedia)],
+    contactPersons: [...new Set(contactPersons)],
+  };
 }
 
 function mergeEnrichmentData(church: DiscoveredChurch, enrichmentData: ChurchEnrichmentData): DiscoveredChurch {
   const enriched: DiscoveredChurch = { ...church };
   
-  // Update email if we found a better one
-  if (enrichmentData.emails.length > 0 && !enriched.email) {
-    enriched.email = enrichmentData.emails[0];
+  // Update email if we found a better one or don't have one
+  if (enrichmentData.emails.length > 0) {
+    // Prefer contact/info emails over generic ones
+    const prioritizedEmail = enrichmentData.emails.find(email => 
+      email.includes('contact') || email.includes('info') || email.includes('pastor')
+    ) || enrichmentData.emails[0];
+    
+    if (!enriched.email || prioritizedEmail.includes('contact') || prioritizedEmail.includes('info')) {
+      enriched.email = prioritizedEmail;
+    }
   }
   
-  // Update phone if we found a better one
+  // Update phone if we found a better one or don't have one
   if (enrichmentData.phones.length > 0 && !enriched.phone) {
     enriched.phone = enrichmentData.phones[0];
   }
   
-  // Update contact name if we found one
-  if (enrichmentData.contact_persons.length > 0 && !enriched.contact_name) {
-    enriched.contact_name = enrichmentData.contact_persons[0];
+  // Update contact name if we found one or don't have one
+  if (enrichmentData.contactPersons.length > 0 && !enriched.contact_name) {
+    enriched.contact_name = enrichmentData.contactPersons[0];
   }
   
   // Add social media
-  if (Object.keys(enrichmentData.social_media).length > 0) {
-    enriched.social_media = enrichmentData.social_media;
+  if (enrichmentData.socialMedia.length > 0) {
+    enriched.social_media = {};
+    enrichmentData.socialMedia.forEach(url => {
+      if (url.includes('facebook')) {
+        enriched.social_media!.facebook = url;
+      } else if (url.includes('instagram')) {
+        enriched.social_media!.instagram = url;
+      } else if (url.includes('twitter')) {
+        enriched.social_media!.twitter = url;
+      }
+    });
   }
   
-  // Add additional info
-  enriched.additional_info = {
-    description: enrichmentData.additional_info.substring(0, 200),
-    services: [], // Could be extracted with more sophisticated parsing
-    languages: [] // Could be detected from content
-  };
-  
   // Update source to indicate enrichment
-  enriched.source = `${church.source} + Website Enrichment`;
+  if (enrichmentData.emails.length > 0 || enrichmentData.phones.length > 0 || enrichmentData.contactPersons.length > 0) {
+    enriched.source = `${church.source} + Website Enrichment`;
+  }
   
   return enriched;
 }
