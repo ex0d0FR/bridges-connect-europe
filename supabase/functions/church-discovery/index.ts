@@ -214,8 +214,8 @@ const handler = async (req: Request): Promise<Response> => {
       if (enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
         console.log('Starting enhanced discovery phase...');
         try {
-          // Limit to first 10 churches to avoid timeout
-          const churchesToEnrich = allChurches.slice(0, 10);
+          // Enrich all discovered churches
+          const churchesToEnrich = allChurches;
           allChurches = await enrichChurchData(churchesToEnrich, apifyApiKey);
         } catch (error) {
           console.error('Enhanced discovery failed:', error);
@@ -500,7 +500,7 @@ async function enrichChurchData(churches: DiscoveredChurch[], apifyApiKey: strin
   console.log(`Starting enhanced data enrichment for ${churches.length} churches`);
   
   const enrichedChurches = [...churches];
-  const websiteChurches = churches.filter(church => church.website).slice(0, 5); // Limit to 5 for speed
+  const websiteChurches = churches.filter(church => church.website).slice(0, 20); // Limit to 20 for better results
   
   if (websiteChurches.length === 0) {
     console.log('No churches with websites found for enrichment');
