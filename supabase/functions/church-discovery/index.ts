@@ -120,9 +120,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
     
-    // Set a timeout for the entire operation (2 minutes max to prevent network errors)
+    // Set a timeout for the entire operation (30 seconds max for faster response)
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Function timeout after 2 minutes')), 120000);
+      setTimeout(() => reject(new Error('Function timeout after 30 seconds')), 30000);
     });
 
     const discoveryPromise = async () => {
@@ -144,9 +144,9 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
     // Use SerpApi Google Maps search with reduced retry logic
-    for (const searchTerm of searchTerms.slice(0, 2)) { // Use first 2 search terms only
+    for (const searchTerm of searchTerms.slice(0, 1)) { // Use only first search term for speed
       let retryCount = 0;
-      const maxRetries = 1; // Reduce retries to prevent timeouts
+      const maxRetries = 0; // No retries to prevent timeouts
       
       while (retryCount <= maxRetries) {
         try {
@@ -161,7 +161,7 @@ const handler = async (req: Request): Promise<Response> => {
           serpApiUrl.searchParams.append('q', searchQuery);
           serpApiUrl.searchParams.append('hl', language);
           serpApiUrl.searchParams.append('gl', region);
-          serpApiUrl.searchParams.append('num', '20');
+          serpApiUrl.searchParams.append('num', '10'); // Reduced from 20 to 10 for faster response
           serpApiUrl.searchParams.append('api_key', serpApiKey);
 
           const response = await fetch(serpApiUrl.toString());
@@ -278,20 +278,9 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-      // Enhanced discovery phase - enrich data for churches with websites
-      if (enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
-        console.log('Starting enhanced discovery phase...');
-        try {
-          // Limit to first 10 churches to avoid timeout and API limits
-          const churchesToEnrich = allChurches.slice(0, 10);
-          console.log(`Enriching ${churchesToEnrich.length} churches out of ${allChurches.length} total`);
-          const enrichedChurches = await enrichChurchData(churchesToEnrich, apifyApiKey);
-          // Replace the first N churches with enriched data, keep the rest as is
-          allChurches = [...enrichedChurches, ...allChurches.slice(10)];
-        } catch (error) {
-          console.error('Enhanced discovery failed:', error);
-          // Continue with basic data if enhancement fails
-        }
+      // Enhanced discovery phase - disabled for now to prevent timeouts
+      if (false && enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
+        console.log('Enhanced discovery disabled to prevent timeouts');
       }
 
       // Add confidence scores
@@ -329,6 +318,21 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error('Error in church-discovery function:', error);
+    
+    // Check if it's a timeout error
+    if (error.message?.includes('timeout')) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Request timeout - please try again with a more specific location',
+          timeout: true 
+        }),
+        {
+          status: 408,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       {
