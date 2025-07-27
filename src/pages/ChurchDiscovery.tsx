@@ -64,6 +64,8 @@ export default function ChurchDiscovery() {
     setSelectedChurches(new Set());
 
     try {
+      console.log('Starting church discovery with:', { location, filterCatholic, enhancedDiscovery });
+      
       // Simulate progress updates
       const progressInterval = setInterval(() => {
         setProgress(prev => Math.min(prev + 10, 90));
@@ -77,10 +79,15 @@ export default function ChurchDiscovery() {
         }
       });
 
+      console.log('Function response:', { data, error });
+
       clearInterval(progressInterval);
       setProgress(100);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Unknown function error');
+      }
 
       if (data?.churches) {
         setDiscoveredChurches(data.churches);
