@@ -52,18 +52,24 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`Starting church discovery for location: ${location} (Enhanced: ${enableEnhancedDiscovery})`);
     
-    let allChurches: DiscoveredChurch[] = [];
+    // Set a timeout for the entire operation (4 minutes max)
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Function timeout after 4 minutes')), 240000);
+    });
 
-    const serpApiKey = Deno.env.get('SERPAPI_KEY');
-    const apifyApiKey = Deno.env.get('APIFY_API_KEY');
-    
-    if (!serpApiKey) {
-      throw new Error('SerpApi key not configured');
-    }
+    const discoveryPromise = async () => {
+      let allChurches: DiscoveredChurch[] = [];
 
-    console.log('SERPAPI_KEY available:', !!serpApiKey);
-    console.log('APIFY_API_KEY available:', !!apifyApiKey);
-    console.log(`Starting real data collection with SerpApi for: ${location}`);
+      const serpApiKey = Deno.env.get('SERPAPI_KEY');
+      const apifyApiKey = Deno.env.get('APIFY_API_KEY');
+      
+      if (!serpApiKey) {
+        throw new Error('SerpApi key not configured');
+      }
+
+      console.log('SERPAPI_KEY available:', !!serpApiKey);
+      console.log('APIFY_API_KEY available:', !!apifyApiKey);
+      console.log(`Starting real data collection with SerpApi for: ${location}`);
     
     // Determine language and region based on location
     const { language, region, searchTerms } = getLocationSettings(location);
@@ -204,33 +210,46 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Enhanced discovery phase - enrich data for churches with websites
-    if (enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
-      console.log('Starting enhanced discovery phase...');
-      allChurches = await enrichChurchData(allChurches, apifyApiKey);
-    }
+      // Enhanced discovery phase - enrich data for churches with websites
+      if (enableEnhancedDiscovery && apifyApiKey && allChurches.length > 0) {
+        console.log('Starting enhanced discovery phase...');
+        try {
+          // Limit to first 10 churches to avoid timeout
+          const churchesToEnrich = allChurches.slice(0, 10);
+          allChurches = await enrichChurchData(churchesToEnrich, apifyApiKey);
+        } catch (error) {
+          console.error('Enhanced discovery failed:', error);
+          // Continue with basic data if enhancement fails
+        }
+      }
 
-    // Add confidence scores
-    allChurches = addConfidenceScores(allChurches);
+      // Add confidence scores
+      allChurches = addConfidenceScores(allChurches);
 
-    // Remove duplicates based on name similarity
-    const uniqueChurches = removeDuplicates(allChurches);
-    console.log(`After removing duplicates: ${uniqueChurches.length} churches`);
-    
-    // Filter out Catholic churches if requested
-    let filteredChurches = uniqueChurches;
-    if (filterNonCatholic) {
-      filteredChurches = uniqueChurches.filter(church => !isCatholic(church));
-      console.log(`After filtering Catholics: ${filteredChurches.length} churches`);
-    }
+      // Remove duplicates based on name similarity
+      const uniqueChurches = removeDuplicates(allChurches);
+      console.log(`After removing duplicates: ${uniqueChurches.length} churches`);
+      
+      // Filter out Catholic churches if requested
+      let filteredChurches = uniqueChurches;
+      if (filterNonCatholic) {
+        filteredChurches = uniqueChurches.filter(church => !isCatholic(church));
+        console.log(`After filtering Catholics: ${filteredChurches.length} churches`);
+      }
 
-    console.log(`Discovery complete: ${filteredChurches.length} churches found for ${location}`);
+      console.log(`Discovery complete: ${filteredChurches.length} churches found for ${location}`);
 
-    return new Response(JSON.stringify({ 
-      churches: filteredChurches,
-      total: filteredChurches.length,
-      location 
-    }), {
+      return {
+        churches: filteredChurches,
+        total: filteredChurches.length,
+        location 
+      };
+    };
+
+    // Race between discovery and timeout
+    const result = await Promise.race([discoveryPromise(), timeoutPromise]);
+
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
@@ -480,31 +499,37 @@ function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
 async function enrichChurchData(churches: DiscoveredChurch[], apifyApiKey: string): Promise<DiscoveredChurch[]> {
   console.log(`Starting enhanced data enrichment for ${churches.length} churches`);
   
-  // Process in smaller batches to avoid rate limits
-  const batchSize = 3;
-  const enrichedChurches: DiscoveredChurch[] = [];
+  const enrichedChurches = [...churches];
+  const websiteChurches = churches.filter(church => church.website).slice(0, 5); // Limit to 5 for speed
   
-  for (let i = 0; i < churches.length; i += batchSize) {
-    const batch = churches.slice(i, i + batchSize);
-    
-    // Process churches sequentially within each batch to avoid rate limits
-    for (const church of batch) {
-      try {
-        const enrichedChurch = await enrichSingleChurch(church, apifyApiKey);
-        enrichedChurches.push(enrichedChurch);
-        
-        // Add delay between individual requests
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      } catch (error) {
-        console.error(`Failed to enrich church ${church.name}:`, error);
-        enrichedChurches.push(church); // Keep original data
+  if (websiteChurches.length === 0) {
+    console.log('No churches with websites found for enrichment');
+    return enrichedChurches;
+  }
+
+  // Process websites with timeout for each church
+  for (const church of websiteChurches) {
+    try {
+      const enrichmentPromise = enrichSingleChurch(church, apifyApiKey);
+      const timeoutPromise = new Promise<null>((_, reject) => {
+        setTimeout(() => reject(new Error('Church enrichment timeout')), 30000); // 30 second timeout per church
+      });
+      
+      const result = await Promise.race([enrichmentPromise, timeoutPromise]);
+      
+      if (result) {
+        const churchIndex = enrichedChurches.findIndex(c => c.name === church.name);
+        if (churchIndex !== -1) {
+          enrichedChurches[churchIndex] = { ...enrichedChurches[churchIndex], ...result };
+        }
       }
+    } catch (error) {
+      console.error(`Failed to enrich church ${church.name}:`, error);
+      // Continue with next church
     }
     
-    // Add longer delay between batches
-    if (i + batchSize < churches.length) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-    }
+    // Small delay between churches
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
   return enrichedChurches;
