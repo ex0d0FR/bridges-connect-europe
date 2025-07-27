@@ -71,13 +71,18 @@ export default function ChurchDiscovery() {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const { data, error } = await supabase.functions.invoke('church-discovery', {
-        body: { 
+      const response = await supabase.functions.invoke('church-discovery', {
+        body: JSON.stringify({ 
           location,
           filterNonCatholic: filterCatholic,
           enableEnhancedDiscovery: enhancedDiscovery
+        }),
+        headers: {
+          'Content-Type': 'application/json'
         }
       });
+
+      const { data, error } = response;
 
       console.log('Function response:', { data, error });
 
