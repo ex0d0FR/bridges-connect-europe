@@ -43,18 +43,86 @@ interface ChurchEnrichmentData {
 }
 
 const handler = async (req: Request): Promise<Response> => {
+  console.log(`[${new Date().toISOString()}] Church discovery request received`);
+  console.log(`Method: ${req.method}, URL: ${req.url}`);
+  
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    console.log('Handling CORS preflight request');
+    return new Response(null, { 
+      status: 200,
+      headers: corsHeaders 
+    });
   }
 
   try {
-    const { location, filterNonCatholic = true, enableEnhancedDiscovery = false }: ChurchDiscoveryRequest = await req.json();
+    // Add request body validation
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log('Request body parsed successfully:', JSON.stringify(requestBody, null, 2));
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid JSON in request body',
+          details: parseError.message 
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    const { location, filterNonCatholic = true, enableEnhancedDiscovery = false }: ChurchDiscoveryRequest = requestBody;
+    
+    // Validate required fields
+    if (!location || typeof location !== 'string' || location.trim().length === 0) {
+      console.error('Invalid location provided:', location);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Location is required and must be a non-empty string' 
+        }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
     
     console.log(`Starting church discovery for location: ${location} (Enhanced: ${enableEnhancedDiscovery})`);
     
-    // Set a timeout for the entire operation (4 minutes max)
+    // Check for test endpoint - simplified response for testing
+    if (location.toLowerCase() === 'test') {
+      console.log('Test endpoint accessed - returning simplified test data');
+      return new Response(JSON.stringify({
+        churches: [
+          {
+            name: 'Test Baptist Church',
+            address: '123 Test Street, Test City',
+            phone: '+1-555-0123',
+            email: 'contact@testchurch.example',
+            website: 'https://testchurch.example',
+            denomination: 'Baptist',
+            source: 'Test Data',
+            confidence_score: 85
+          }
+        ],
+        total: 1,
+        location: 'test'
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders,
+        },
+      });
+    }
+    
+    // Set a timeout for the entire operation (2 minutes max to prevent network errors)
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Function timeout after 4 minutes')), 240000);
+      setTimeout(() => reject(new Error('Function timeout after 2 minutes')), 120000);
     });
 
     const discoveryPromise = async () => {
@@ -75,10 +143,10 @@ const handler = async (req: Request): Promise<Response> => {
     const { language, region, searchTerms } = getLocationSettings(location);
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
-    // Use SerpApi Google Maps search with retry logic
-    for (const searchTerm of searchTerms.slice(0, 3)) { // Use first 3 search terms
+    // Use SerpApi Google Maps search with reduced retry logic
+    for (const searchTerm of searchTerms.slice(0, 2)) { // Use first 2 search terms only
       let retryCount = 0;
-      const maxRetries = 2;
+      const maxRetries = 1; // Reduce retries to prevent timeouts
       
       while (retryCount <= maxRetries) {
         try {
@@ -205,7 +273,7 @@ const handler = async (req: Request): Promise<Response> => {
         retryCount++;
         if (retryCount <= maxRetries) {
           console.log(`Waiting before retry...`);
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          await new Promise(resolve => setTimeout(resolve, 500)); // Reduced wait time
         }
       }
     }
