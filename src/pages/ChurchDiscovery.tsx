@@ -72,13 +72,10 @@ export default function ChurchDiscovery() {
       }, 500);
 
       const response = await supabase.functions.invoke('church-discovery', {
-        body: JSON.stringify({ 
+        body: { 
           location,
           filterNonCatholic: filterCatholic,
           enableEnhancedDiscovery: enhancedDiscovery
-        }),
-        headers: {
-          'Content-Type': 'application/json'
         }
       });
 
