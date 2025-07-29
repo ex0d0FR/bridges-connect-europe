@@ -180,22 +180,14 @@ const handler = async (req: Request): Promise<Response> => {
           // Parse the HTML content to extract church information
           const htmlContent = data.result.content;
           
-          // Extract potential church data using regex patterns
-          // Look for Google Maps place cards and business listings
-          const businessCardPattern = /<div[^>]*aria-label="[^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*"[^>]*>/gi;
-          const matches = htmlContent.match(businessCardPattern) || [];
+          // Extract potential church data using regex patterns and social media
+          const churchMatches = extractChurchesWithSocialMedia(htmlContent);
           
-          console.log(`Found ${matches.length} potential church matches`);
+          console.log(`Found ${churchMatches.length} potential church matches`);
 
-          // Extract church details from the matched content
-          for (const match of matches.slice(0, 10)) { // Limit to 10 results
+          // Process each church match
+          for (const churchData of churchMatches.slice(0, 10)) { // Limit to 10 results
             try {
-              // Extract church name from aria-label
-              const nameMatch = match.match(/aria-label="([^"]+)"/);
-              const fullText = nameMatch ? nameMatch[1] : '';
-              
-              if (!fullText) continue;
-
               // Check if this looks like a church
               const churchKeywords = [
                 'church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 
@@ -207,54 +199,31 @@ const handler = async (req: Request): Promise<Response> => {
               ];
               
               const isChurch = churchKeywords.some(keyword => 
-                fullText.toLowerCase().includes(keyword)
+                churchData.name.toLowerCase().includes(keyword)
               );
 
               if (!isChurch) continue;
 
               // Filter out Catholic churches if requested
-              const isCatholic = /catholic|st\.|saint|our lady|holy|sacred heart|basilica|cathedral|abbey|monastery/i.test(fullText);
+              const isCatholic = /catholic|st\.|saint|our lady|holy|sacred heart|basilica|cathedral|abbey|monastery/i.test(churchData.name);
               if (filterNonCatholic && isCatholic) continue;
 
-              // Extract basic information from the text
-              const parts = fullText.split('·').map(p => p.trim());
-              const name = parts[0] || 'Unknown Church';
-              
-              // Try to find address, rating, etc. in the parts
-              let address = '';
-              let rating = null;
-              let website = '';
-              
-              for (const part of parts) {
-                // Look for address patterns
-                if (/\d+[^·]*(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|plaza|circle)/i.test(part)) {
-                  address = part;
-                }
-                // Look for rating patterns
-                if (/\d+\.\d+.*star/i.test(part)) {
-                  const ratingMatch = part.match(/(\d+\.\d+)/);
-                  if (ratingMatch) rating = parseFloat(ratingMatch[1]);
-                }
-              }
-
-              // Extract phone number from the full text
-              const phone = extractPhone(fullText);
-              
               const church: DiscoveredChurch = {
-                name: name,
-                address: address,
-                city: extractCity(address, location),
-                country: extractCountry(address, location),
-                phone: phone,
-                email: null, // Will be enriched later if website is available
-                website: website,
-                contact_name: extractContactName(fullText, name),
-                denomination: extractDenomination(name, fullText),
-                source: 'Scrapfly Google Maps'
+                name: churchData.name,
+                address: churchData.address,
+                city: extractCity(churchData.address, location),
+                country: extractCountry(churchData.address, location),
+                phone: churchData.phone,
+                email: churchData.email,
+                website: churchData.website,
+                contact_name: extractContactName(churchData.name + ' ' + (churchData.address || ''), churchData.name),
+                denomination: extractDenomination(churchData.name, churchData.name),
+                source: 'Scrapfly Google Maps',
+                social_media: churchData.socialMedia
               };
 
               allChurches.push(church);
-              console.log(`Added church: ${name}`);
+              console.log(`Added church: ${churchData.name} with social media:`, churchData.socialMedia);
             } catch (error) {
               console.error('Error parsing church data:', error);
             }
@@ -375,6 +344,110 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+// Function to extract churches with social media from HTML content
+function extractChurchesWithSocialMedia(htmlContent: string): Array<{
+  name: string;
+  address: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  socialMedia?: {
+    facebook?: string;
+    instagram?: string;
+    twitter?: string;
+  }
+}> {
+  const results: Array<{
+    name: string;
+    address: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    socialMedia?: {
+      facebook?: string;
+      instagram?: string;
+      twitter?: string;
+    }
+  }> = [];
+
+  // Extract business listings from Google Maps HTML
+  const businessCardPattern = /<div[^>]*aria-label="([^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*)"[^>]*>/gi;
+  const matches = [...htmlContent.matchAll(businessCardPattern)];
+
+  for (const match of matches) {
+    const fullText = match[1] || '';
+    
+    // Parse the basic information
+    const parts = fullText.split('·').map(p => p.trim());
+    const name = parts[0] || 'Unknown Church';
+    
+    let address = '';
+    let phone = '';
+    let email = '';
+    let website = '';
+    
+    // Extract address, phone, etc. from the parts
+    for (const part of parts) {
+      if (/\d+[^·]*(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|plaza|circle)/i.test(part)) {
+        address = part;
+      }
+    }
+
+    // Extract phone number from the full text
+    phone = extractPhone(fullText) || '';
+    
+    // Extract social media links from the surrounding HTML context
+    const contextStart = Math.max(0, match.index! - 2000);
+    const contextEnd = Math.min(htmlContent.length, match.index! + 2000);
+    const contextHtml = htmlContent.slice(contextStart, contextEnd);
+    
+    const socialMedia: {
+      facebook?: string;
+      instagram?: string;
+      twitter?: string;
+    } = {};
+
+    // Look for social media links in the context
+    const facebookMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[a-zA-Z0-9._-]+/i);
+    if (facebookMatch) {
+      socialMedia.facebook = facebookMatch[0].startsWith('http') ? facebookMatch[0] : `https://${facebookMatch[0]}`;
+    }
+
+    const instagramMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._-]+/i);
+    if (instagramMatch) {
+      socialMedia.instagram = instagramMatch[0].startsWith('http') ? instagramMatch[0] : `https://${instagramMatch[0]}`;
+    }
+
+    const twitterMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/[a-zA-Z0-9._-]+/i);
+    if (twitterMatch) {
+      socialMedia.twitter = twitterMatch[0].startsWith('http') ? twitterMatch[0] : `https://${twitterMatch[0]}`;
+    }
+
+    // Look for website links
+    const websiteMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s"'<>]*)?/i);
+    if (websiteMatch && !websiteMatch[0].includes('google.com') && !websiteMatch[0].includes('facebook.com') && !websiteMatch[0].includes('instagram.com') && !websiteMatch[0].includes('twitter.com')) {
+      website = websiteMatch[0].startsWith('http') ? websiteMatch[0] : `https://${websiteMatch[0]}`;
+    }
+
+    // Look for email addresses
+    const emailMatch = contextHtml.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i);
+    if (emailMatch) {
+      email = emailMatch[0];
+    }
+
+    results.push({
+      name: name,
+      address: address,
+      phone: phone || undefined,
+      email: email || undefined,
+      website: website || undefined,
+      socialMedia: Object.keys(socialMedia).length > 0 ? socialMedia : undefined
+    });
+  }
+
+  return results;
+}
 
 // Helper functions for data extraction
 function extractEmail(website: string, additionalInfo: string): string | null {
