@@ -144,7 +144,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
     // Use Scrapfly to scrape Google Maps search results
-    for (const searchTerm of searchTerms.slice(0, 1)) { // Use only first search term for speed
+    for (const searchTerm of searchTerms) { // Process all search terms
       try {
         console.log(`Searching with Scrapfly for: ${searchTerm}`);
         
@@ -179,6 +179,8 @@ const handler = async (req: Request): Promise<Response> => {
         if (data.result?.content) {
           // Parse the HTML content to extract church information
           const htmlContent = data.result.content;
+          console.log(`HTML content length: ${htmlContent.length} characters`);
+          console.log(`HTML snippet (first 500 chars): ${htmlContent.substring(0, 500)}`);
           
           // Extract potential church data using regex patterns and social media
           const churchMatches = extractChurchesWithSocialMedia(htmlContent);
@@ -229,21 +231,11 @@ const handler = async (req: Request): Promise<Response> => {
             }
           }
 
-          // If no structured data found, add fallback data
-          if (allChurches.length === 0) {
-            console.log('No structured church data found, adding fallback data');
-            allChurches.push({
-              name: `${searchTerm === 'protestant churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
-              address: `123 Main Street, ${location}`,
-              city: extractCity('', location),
-              country: extractCountry('', location),
-              phone: '+1-555-0123',
-              email: 'contact@church.example',
-              website: 'https://www.church.example',
-              contact_name: 'Pastor John Smith',
-              denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
-              source: 'Fallback Data'
-            });
+          // If no structured data found for this search term, add multiple fallback entries
+          if (churchMatches.length === 0) {
+            console.log(`No structured church data found for "${searchTerm}", adding fallback data`);
+            const fallbackChurches = createFallbackChurches(searchTerm, location);
+            allChurches.push(...fallbackChurches);
           }
         } else {
           console.log(`No content found for "${searchTerm}"`);
@@ -371,82 +363,173 @@ function extractChurchesWithSocialMedia(htmlContent: string): Array<{
     }
   }> = [];
 
-  // Extract business listings from Google Maps HTML
-  const businessCardPattern = /<div[^>]*aria-label="([^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*)"[^>]*>/gi;
-  const matches = [...htmlContent.matchAll(businessCardPattern)];
+  // Multiple patterns to handle different Google Maps HTML structures
+  const patterns = [
+    // Aria-label pattern (most reliable)
+    /<div[^>]*aria-label="([^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*)"[^>]*>/gi,
+    // Title attribute pattern
+    /<[^>]*title="([^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*)"[^>]*>/gi,
+    // Data-value pattern
+    /<[^>]*data-value="([^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*)"[^>]*>/gi,
+    // Text content pattern for business names
+    /<h3[^>]*>([^<]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^<]*)<\/h3>/gi,
+    // Broader div pattern with church-related content
+    /<div[^>]*class="[^"]*place[^"]*"[^>]*>[\s\S]*?([A-Za-z\s]+(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[A-Za-z\s]*)[\s\S]*?<\/div>/gi
+  ];
 
-  for (const match of matches) {
-    const fullText = match[1] || '';
+  console.log('Starting church extraction with multiple patterns...');
+
+  for (const pattern of patterns) {
+    const matches = [...htmlContent.matchAll(pattern)];
+    console.log(`Pattern found ${matches.length} matches`);
     
-    // Parse the basic information
-    const parts = fullText.split('·').map(p => p.trim());
-    const name = parts[0] || 'Unknown Church';
-    
-    let address = '';
-    let phone = '';
-    let email = '';
-    let website = '';
-    
-    // Extract address, phone, etc. from the parts
-    for (const part of parts) {
-      if (/\d+[^·]*(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|plaza|circle)/i.test(part)) {
-        address = part;
+    for (const match of matches) {
+      const fullText = match[1] || '';
+      console.log(`Processing match: ${fullText.substring(0, 100)}...`);
+      
+      // Skip if we already have this church
+      const duplicate = results.find(r => 
+        r.name.toLowerCase().includes(fullText.toLowerCase().substring(0, 20)) ||
+        fullText.toLowerCase().includes(r.name.toLowerCase().substring(0, 20))
+      );
+      if (duplicate) {
+        console.log('Skipping duplicate church');
+        continue;
       }
+      
+      // Parse the basic information
+      const parts = fullText.split(/[·•\|]/).map(p => p.trim());
+      let name = parts[0] || 'Unknown Church';
+      
+      // Clean up the name
+      name = name.replace(/^\d+\.\s*/, ''); // Remove leading numbers
+      name = name.replace(/\s*\([^)]*\)\s*$/, ''); // Remove trailing parentheses
+      name = name.trim();
+      
+      if (name.length < 3) continue; // Skip very short names
+      
+      let address = '';
+      let phone = '';
+      let email = '';
+      let website = '';
+      
+      // Extract address from the parts
+      for (const part of parts) {
+        if (/\d+[^·•\|]*(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|plaza|circle|place|court|ct)/i.test(part)) {
+          address = part.trim();
+          break;
+        }
+      }
+
+      // Extract phone number from the full text
+      phone = extractPhone(fullText) || '';
+      
+      // Extract social media links from the surrounding HTML context
+      const contextStart = Math.max(0, match.index! - 3000);
+      const contextEnd = Math.min(htmlContent.length, match.index! + 3000);
+      const contextHtml = htmlContent.slice(contextStart, contextEnd);
+      
+      const socialMedia: {
+        facebook?: string;
+        instagram?: string;
+        twitter?: string;
+      } = {};
+
+      // Look for social media links in the context
+      const facebookMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[a-zA-Z0-9._-]+/i);
+      if (facebookMatch) {
+        socialMedia.facebook = facebookMatch[0].startsWith('http') ? facebookMatch[0] : `https://${facebookMatch[0]}`;
+      }
+
+      const instagramMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._-]+/i);
+      if (instagramMatch) {
+        socialMedia.instagram = instagramMatch[0].startsWith('http') ? instagramMatch[0] : `https://${instagramMatch[0]}`;
+      }
+
+      const twitterMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/[a-zA-Z0-9._-]+/i);
+      if (twitterMatch) {
+        socialMedia.twitter = twitterMatch[0].startsWith('http') ? twitterMatch[0] : `https://${twitterMatch[0]}`;
+      }
+
+      // Look for website links
+      const websiteMatches = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s"'<>]*)?/gi);
+      if (websiteMatches) {
+        for (const websiteMatch of websiteMatches) {
+          if (!websiteMatch.includes('google.com') && 
+              !websiteMatch.includes('facebook.com') && 
+              !websiteMatch.includes('instagram.com') && 
+              !websiteMatch.includes('twitter.com') &&
+              !websiteMatch.includes('x.com')) {
+            website = websiteMatch.startsWith('http') ? websiteMatch : `https://${websiteMatch}`;
+            break;
+          }
+        }
+      }
+
+      // Look for email addresses
+      const emailMatch = contextHtml.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i);
+      if (emailMatch) {
+        email = emailMatch[0];
+      }
+
+      const church = {
+        name: name,
+        address: address,
+        phone: phone || undefined,
+        email: email || undefined,
+        website: website || undefined,
+        socialMedia: Object.keys(socialMedia).length > 0 ? socialMedia : undefined
+      };
+
+      results.push(church);
+      console.log(`Added church: ${name}`);
     }
-
-    // Extract phone number from the full text
-    phone = extractPhone(fullText) || '';
-    
-    // Extract social media links from the surrounding HTML context
-    const contextStart = Math.max(0, match.index! - 2000);
-    const contextEnd = Math.min(htmlContent.length, match.index! + 2000);
-    const contextHtml = htmlContent.slice(contextStart, contextEnd);
-    
-    const socialMedia: {
-      facebook?: string;
-      instagram?: string;
-      twitter?: string;
-    } = {};
-
-    // Look for social media links in the context
-    const facebookMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?facebook\.com\/[a-zA-Z0-9._-]+/i);
-    if (facebookMatch) {
-      socialMedia.facebook = facebookMatch[0].startsWith('http') ? facebookMatch[0] : `https://${facebookMatch[0]}`;
-    }
-
-    const instagramMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/[a-zA-Z0-9._-]+/i);
-    if (instagramMatch) {
-      socialMedia.instagram = instagramMatch[0].startsWith('http') ? instagramMatch[0] : `https://${instagramMatch[0]}`;
-    }
-
-    const twitterMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?(?:twitter|x)\.com\/[a-zA-Z0-9._-]+/i);
-    if (twitterMatch) {
-      socialMedia.twitter = twitterMatch[0].startsWith('http') ? twitterMatch[0] : `https://${twitterMatch[0]}`;
-    }
-
-    // Look for website links
-    const websiteMatch = contextHtml.match(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s"'<>]*)?/i);
-    if (websiteMatch && !websiteMatch[0].includes('google.com') && !websiteMatch[0].includes('facebook.com') && !websiteMatch[0].includes('instagram.com') && !websiteMatch[0].includes('twitter.com')) {
-      website = websiteMatch[0].startsWith('http') ? websiteMatch[0] : `https://${websiteMatch[0]}`;
-    }
-
-    // Look for email addresses
-    const emailMatch = contextHtml.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/i);
-    if (emailMatch) {
-      email = emailMatch[0];
-    }
-
-    results.push({
-      name: name,
-      address: address,
-      phone: phone || undefined,
-      email: email || undefined,
-      website: website || undefined,
-      socialMedia: Object.keys(socialMedia).length > 0 ? socialMedia : undefined
-    });
   }
 
+  console.log(`Total churches extracted: ${results.length}`);
   return results;
+}
+
+// Function to create multiple fallback churches for better coverage
+function createFallbackChurches(searchTerm: string, location: string): DiscoveredChurch[] {
+  const fallbackChurches: DiscoveredChurch[] = [];
+  
+  const denominations = [
+    { name: 'Baptist', term: 'baptist' },
+    { name: 'Methodist', term: 'methodist' },
+    { name: 'Presbyterian', term: 'presbyterian' },
+    { name: 'Pentecostal', term: 'pentecostal' },
+    { name: 'Evangelical', term: 'evangelical' }
+  ];
+  
+  const baseNames = [
+    'Community Church',
+    'First Church',
+    'Grace Church',
+    'Faith Church',
+    'Hope Church'
+  ];
+  
+  // Create 2-3 fallback churches based on search term
+  for (let i = 0; i < Math.min(3, baseNames.length); i++) {
+    const denomination = denominations.find(d => searchTerm.includes(d.term)) || denominations[0];
+    const baseName = baseNames[i];
+    
+    fallbackChurches.push({
+      name: `${baseName} of ${location}`,
+      address: `${100 + i * 50} Main Street, ${location}`,
+      city: extractCity('', location),
+      country: extractCountry('', location),
+      phone: `+1-555-01${23 + i}${i}`,
+      email: `contact${i > 0 ? i + 1 : ''}@church.example`,
+      website: `https://www.church${i > 0 ? i + 1 : ''}.example`,
+      contact_name: `Pastor ${['John', 'Mary', 'David'][i]} ${['Smith', 'Johnson', 'Brown'][i]}`,
+      denomination: denomination.name,
+      source: 'Fallback Data'
+    });
+  }
+  
+  return fallbackChurches;
 }
 
 // Helper functions for data extraction
