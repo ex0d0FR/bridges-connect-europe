@@ -288,14 +288,14 @@ const handler = async (req: Request): Promise<Response> => {
       // Add confidence scores
       allChurches = addConfidenceScores(allChurches);
 
-      // Remove duplicates based on name similarity
-      const uniqueChurches = removeDuplicates(allChurches);
-      console.log(`After removing duplicates: ${uniqueChurches.length} churches`);
+      // Intelligently merge duplicate churches and their data
+      const mergedChurches = mergeChurchData(allChurches);
+      console.log(`After intelligent merging: ${mergedChurches.length} churches (from ${allChurches.length} raw results)`);
       
       // Filter out Catholic churches if requested
-      let filteredChurches = uniqueChurches;
+      let filteredChurches = mergedChurches;
       if (filterNonCatholic) {
-        filteredChurches = uniqueChurches.filter(church => !isCatholic(church));
+        filteredChurches = mergedChurches.filter(church => !isCatholic(church));
         console.log(`After filtering Catholics: ${filteredChurches.length} churches`);
       }
 
@@ -662,6 +662,357 @@ function isCatholic(church: DiscoveredChurch): boolean {
   }
   
   return isCatholicChurch;
+}
+
+// Smart church data merging system
+function mergeChurchData(churches: DiscoveredChurch[]): DiscoveredChurch[] {
+  console.log(`Starting intelligent church data merging for ${churches.length} churches`);
+  
+  if (churches.length === 0) return churches;
+  
+  const mergedChurches: DiscoveredChurch[] = [];
+  const processed = new Set<number>();
+  
+  for (let i = 0; i < churches.length; i++) {
+    if (processed.has(i)) continue;
+    
+    const currentChurch = churches[i];
+    const duplicateIndices: number[] = [i];
+    
+    // Find all churches that match this one
+    for (let j = i + 1; j < churches.length; j++) {
+      if (processed.has(j)) continue;
+      
+      if (areChurchesSame(currentChurch, churches[j])) {
+        duplicateIndices.push(j);
+      }
+    }
+    
+    // Mark all found duplicates as processed
+    duplicateIndices.forEach(idx => processed.add(idx));
+    
+    // If we found duplicates, merge all data intelligently
+    if (duplicateIndices.length > 1) {
+      const churchesToMerge = duplicateIndices.map(idx => churches[idx]);
+      const mergedChurch = intelligentlyMergeChurches(churchesToMerge);
+      mergedChurches.push(mergedChurch);
+      console.log(`Merged ${duplicateIndices.length} churches into: "${mergedChurch.name}"`);
+    } else {
+      // No duplicates found, add as is
+      mergedChurches.push(currentChurch);
+    }
+  }
+  
+  console.log(`Merging complete: ${churches.length} → ${mergedChurches.length} churches`);
+  return mergedChurches;
+}
+
+// Function to determine if two churches are the same
+function areChurchesSame(church1: DiscoveredChurch, church2: DiscoveredChurch): boolean {
+  // 1. Exact name match (after normalization)
+  const name1 = normalizeChurchName(church1.name);
+  const name2 = normalizeChurchName(church2.name);
+  
+  if (name1 === name2) return true;
+  
+  // 2. Very similar names (>85% similarity)
+  const nameSimilarity = calculateStringSimilarity(name1, name2);
+  if (nameSimilarity > 0.85) {
+    // If names are very similar, check if addresses match or are close
+    if (church1.address && church2.address) {
+      const addressSimilarity = calculateStringSimilarity(
+        normalizeAddress(church1.address),
+        normalizeAddress(church2.address)
+      );
+      if (addressSimilarity > 0.7) return true;
+    }
+    
+    // If one has address and other doesn't, but phone matches
+    if (church1.phone && church2.phone) {
+      const phone1 = normalizePhone(church1.phone);
+      const phone2 = normalizePhone(church2.phone);
+      if (phone1 === phone2) return true;
+    }
+    
+    // If names are very similar and both in same city
+    if (church1.city && church2.city && church1.city.toLowerCase() === church2.city.toLowerCase()) {
+      return true;
+    }
+  }
+  
+  // 3. Same phone number (very reliable indicator)
+  if (church1.phone && church2.phone) {
+    const phone1 = normalizePhone(church1.phone);
+    const phone2 = normalizePhone(church2.phone);
+    if (phone1 === phone2 && phone1.length > 7) return true; // Avoid matching partial numbers
+  }
+  
+  // 4. Same website (very reliable indicator)
+  if (church1.website && church2.website) {
+    const website1 = normalizeWebsite(church1.website);
+    const website2 = normalizeWebsite(church2.website);
+    if (website1 === website2) return true;
+  }
+  
+  return false;
+}
+
+// Function to intelligently merge multiple church records
+function intelligentlyMergeChurches(churches: DiscoveredChurch[]): DiscoveredChurch {
+  console.log(`Merging ${churches.length} duplicate churches`);
+  
+  // Start with the church that has the highest confidence score or most data
+  const baseChurch = churches.reduce((best, current) => {
+    const bestDataCount = countNonEmptyFields(best);
+    const currentDataCount = countNonEmptyFields(current);
+    
+    // Prefer higher confidence scores, then more complete data
+    if ((current.confidence_score || 0) > (best.confidence_score || 0)) return current;
+    if ((current.confidence_score || 0) === (best.confidence_score || 0) && currentDataCount > bestDataCount) return current;
+    return best;
+  });
+  
+  const merged: DiscoveredChurch = { ...baseChurch };
+  
+  // Merge all data from other churches, prioritizing quality
+  churches.forEach(church => {
+    if (church === baseChurch) return;
+    
+    // Name: Choose the most complete/professional one
+    if (!merged.name || (church.name.length > merged.name.length && !church.name.includes('Unknown'))) {
+      merged.name = church.name;
+    }
+    
+    // Address: Choose the most complete one
+    if (!merged.address || (church.address && church.address.length > merged.address.length)) {
+      merged.address = church.address;
+    }
+    
+    // City/Country: Fill if missing
+    if (!merged.city && church.city) merged.city = church.city;
+    if (!merged.country && church.country) merged.country = church.country;
+    
+    // Phone: Choose the most complete one, prefer international format
+    if (!merged.phone && church.phone) {
+      merged.phone = church.phone;
+    } else if (church.phone && merged.phone) {
+      if (church.phone.startsWith('+') && !merged.phone.startsWith('+')) {
+        merged.phone = church.phone;
+      } else if (church.phone.length > merged.phone.length) {
+        merged.phone = church.phone;
+      }
+    }
+    
+    // Email: Prefer contact/info emails over generic ones
+    if (!merged.email && church.email) {
+      merged.email = church.email;
+    } else if (church.email && merged.email) {
+      const isChurchEmailBetter = 
+        (church.email.includes('contact') || church.email.includes('info') || church.email.includes('pastor')) &&
+        !(merged.email.includes('contact') || merged.email.includes('info') || merged.email.includes('pastor'));
+      
+      if (isChurchEmailBetter) {
+        merged.email = church.email;
+      }
+    }
+    
+    // Website: Prefer official church domains over generic ones
+    if (!merged.website && church.website) {
+      merged.website = church.website;
+    } else if (church.website && merged.website) {
+      const isChurchWebsiteBetter = 
+        church.website.includes('church') || church.website.includes('faith') || church.website.includes('ministry');
+      const isMergedWebsiteGeneric = 
+        merged.website.includes('example') || merged.website.includes('placeholder');
+      
+      if (isChurchWebsiteBetter || isMergedWebsiteGeneric) {
+        merged.website = church.website;
+      }
+    }
+    
+    // Contact name: Choose the most specific one
+    if (!merged.contact_name && church.contact_name) {
+      merged.contact_name = church.contact_name;
+    } else if (church.contact_name && merged.contact_name && church.contact_name.length > merged.contact_name.length) {
+      merged.contact_name = church.contact_name;
+    }
+    
+    // Denomination: Choose the most specific one
+    if (!merged.denomination && church.denomination) {
+      merged.denomination = church.denomination;
+    } else if (church.denomination && merged.denomination === 'Other Protestant' && church.denomination !== 'Other Protestant') {
+      merged.denomination = church.denomination;
+    }
+    
+    // Social media: Merge all social media links
+    if (church.social_media) {
+      if (!merged.social_media) merged.social_media = {};
+      
+      if (church.social_media.facebook && !merged.social_media.facebook) {
+        merged.social_media.facebook = church.social_media.facebook;
+      }
+      if (church.social_media.instagram && !merged.social_media.instagram) {
+        merged.social_media.instagram = church.social_media.instagram;
+      }
+      if (church.social_media.twitter && !merged.social_media.twitter) {
+        merged.social_media.twitter = church.social_media.twitter;
+      }
+    }
+    
+    // Additional info: Merge arrays and descriptions
+    if (church.additional_info) {
+      if (!merged.additional_info) merged.additional_info = {};
+      
+      if (church.additional_info.description && !merged.additional_info.description) {
+        merged.additional_info.description = church.additional_info.description;
+      }
+      
+      if (church.additional_info.services) {
+        if (!merged.additional_info.services) {
+          merged.additional_info.services = church.additional_info.services;
+        } else {
+          // Merge and deduplicate services
+          const allServices = [...merged.additional_info.services, ...church.additional_info.services];
+          merged.additional_info.services = [...new Set(allServices)];
+        }
+      }
+      
+      if (church.additional_info.languages) {
+        if (!merged.additional_info.languages) {
+          merged.additional_info.languages = church.additional_info.languages;
+        } else {
+          // Merge and deduplicate languages
+          const allLanguages = [...merged.additional_info.languages, ...church.additional_info.languages];
+          merged.additional_info.languages = [...new Set(allLanguages)];
+        }
+      }
+    }
+  });
+  
+  // Update source to indicate merging
+  const sources = churches.map(c => c.source).filter((s, i, arr) => arr.indexOf(s) === i);
+  merged.source = sources.length === 1 ? sources[0] : `Merged: ${sources.join(' + ')}`;
+  
+  // Recalculate confidence score based on merged data
+  merged.confidence_score = calculateMergedConfidenceScore(merged, churches.length);
+  
+  return merged;
+}
+
+// Helper functions for merging
+function normalizeChurchName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(church|iglesia|église|chiesa|kirche|igreja|temple|templo|chapel|capilla)\b/g, '')
+    .trim();
+}
+
+function normalizeAddress(address: string): string {
+  return address
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b(street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard)\b/g, '')
+    .trim();
+}
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/[^\d]/g, '');
+}
+
+function normalizeWebsite(website: string): string {
+  return website
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/$/, '');
+}
+
+function calculateStringSimilarity(str1: string, str2: string): number {
+  const longer = str1.length > str2.length ? str1 : str2;
+  const shorter = str1.length > str2.length ? str2 : str1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = calculateEditDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+}
+
+function calculateEditDistance(str1: string, str2: string): number {
+  const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+  
+  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+  
+  for (let j = 1; j <= str2.length; j++) {
+    for (let i = 1; i <= str1.length; i++) {
+      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[j][i] = Math.min(
+        matrix[j][i - 1] + 1,     // deletion
+        matrix[j - 1][i] + 1,     // insertion
+        matrix[j - 1][i - 1] + indicator // substitution
+      );
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}
+
+function countNonEmptyFields(church: DiscoveredChurch): number {
+  let count = 0;
+  if (church.name && !church.name.includes('Unknown')) count++;
+  if (church.address) count++;
+  if (church.city) count++;
+  if (church.country) count++;
+  if (church.phone) count++;
+  if (church.email && !church.email.includes('example')) count++;
+  if (church.website && !church.website.includes('example')) count++;
+  if (church.contact_name) count++;
+  if (church.denomination) count++;
+  if (church.social_media?.facebook) count++;
+  if (church.social_media?.instagram) count++;
+  if (church.social_media?.twitter) count++;
+  if (church.additional_info?.description) count++;
+  return count;
+}
+
+function calculateMergedConfidenceScore(church: DiscoveredChurch, mergedCount: number): number {
+  let score = 0;
+  
+  // Base score
+  score += 10;
+  
+  // Contact information scoring
+  if (church.email && !church.email.includes('example')) score += 25;
+  if (church.phone) score += 20;
+  if (church.website && !church.website.includes('example')) score += 15;
+  if (church.contact_name) score += 15;
+  
+  // Address information
+  if (church.address) score += 10;
+  if (church.city) score += 5;
+  
+  // Social media presence
+  if (church.social_media?.facebook) score += 5;
+  if (church.social_media?.instagram) score += 3;
+  if (church.social_media?.twitter) score += 3;
+  
+  // Data source reliability
+  if (church.source.includes('Website Enrichment')) score += 10;
+  if (church.source.includes('Fallback Data')) score -= 30;
+  
+  // Bonus for merged data (indicates multiple sources confirmed this church)
+  score += (mergedCount - 1) * 5;
+  
+  // Denomination specificity
+  if (church.denomination && church.denomination !== 'Other Protestant') score += 5;
+  
+  // Cap at 100
+  score = Math.min(100, Math.max(0, score));
+  
+  return score;
 }
 
 function removeDuplicates(churches: DiscoveredChurch[]): DiscoveredChurch[] {
