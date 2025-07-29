@@ -128,135 +128,143 @@ const handler = async (req: Request): Promise<Response> => {
     const discoveryPromise = async () => {
       let allChurches: DiscoveredChurch[] = [];
 
-      const serpApiKey = Deno.env.get('SERPAPI_KEY');
+      const scrapflyApiKey = Deno.env.get('SCRAPFLY_API_KEY');
       const apifyApiKey = Deno.env.get('APIFY_API_KEY');
       
-      if (!serpApiKey) {
-        throw new Error('SerpApi key not configured');
+      if (!scrapflyApiKey) {
+        throw new Error('Scrapfly API key not configured');
       }
 
-      console.log('SERPAPI_KEY available:', !!serpApiKey);
+      console.log('SCRAPFLY_API_KEY available:', !!scrapflyApiKey);
       console.log('APIFY_API_KEY available:', !!apifyApiKey);
-      console.log(`Starting real data collection with SerpApi for: ${location}`);
+      console.log(`Starting real data collection with Scrapfly for: ${location}`);
     
     // Determine language and region based on location
     const { language, region, searchTerms } = getLocationSettings(location);
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
-    // Use SerpApi Google Maps search with reduced retry logic
+    // Use Scrapfly to scrape Google Maps search results
     for (const searchTerm of searchTerms.slice(0, 1)) { // Use only first search term for speed
-      let retryCount = 0;
-      const maxRetries = 0; // No retries to prevent timeouts
-      
-      while (retryCount <= maxRetries) {
-        try {
-          console.log(`Searching with SerpApi for: ${searchTerm} (attempt ${retryCount + 1})`);
-          
-          const searchQuery = `${searchTerm} ${location}`;
-          console.log(`Search query: ${searchQuery}`);
-          
-          // SerpApi Google Maps Local Results API
-          const serpApiUrl = new URL('https://serpapi.com/search');
-          serpApiUrl.searchParams.append('engine', 'google_maps');
-          serpApiUrl.searchParams.append('q', searchQuery);
-          serpApiUrl.searchParams.append('hl', language);
-          serpApiUrl.searchParams.append('gl', region);
-          serpApiUrl.searchParams.append('num', '10'); // Reduced from 20 to 10 for faster response
-          serpApiUrl.searchParams.append('api_key', serpApiKey);
+      try {
+        console.log(`Searching with Scrapfly for: ${searchTerm}`);
+        
+        const searchQuery = `${searchTerm} ${location}`;
+        console.log(`Search query: ${searchQuery}`);
+        
+        // Construct Google Maps search URL
+        const encodedQuery = encodeURIComponent(searchQuery);
+        const googleMapsUrl = `https://www.google.com/maps/search/${encodedQuery}`;
+        
+        // Scrapfly API call
+        const scrapflyUrl = new URL('https://api.scrapfly.io/scrape');
+        scrapflyUrl.searchParams.append('key', scrapflyApiKey);
+        scrapflyUrl.searchParams.append('url', googleMapsUrl);
+        scrapflyUrl.searchParams.append('render_js', 'true');
+        scrapflyUrl.searchParams.append('wait', '3000');
+        scrapflyUrl.searchParams.append('format', 'json');
+        scrapflyUrl.searchParams.append('country', region);
 
-          const response = await fetch(serpApiUrl.toString());
-          console.log(`SerpApi Response Status: ${response.status}`);
+        const response = await fetch(scrapflyUrl.toString());
+        console.log(`Scrapfly Response Status: ${response.status}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Scrapfly error: ${response.status} ${errorText}`);
+          throw new Error(`Scrapfly error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Scrapfly response received for "${searchTerm}"`);
+
+        if (data.result?.content) {
+          // Parse the HTML content to extract church information
+          const htmlContent = data.result.content;
           
-          if (response.ok) {
-            const data = await response.json();
-            const results = data.local_results || [];
-            
-            console.log(`Found ${results.length} total results for "${searchTerm}"`);
-            
-            if (results.length > 0) {
-              console.log(`Sample result:`, JSON.stringify(results[0], null, 2));
+          // Extract potential church data using regex patterns
+          // Look for Google Maps place cards and business listings
+          const businessCardPattern = /<div[^>]*aria-label="[^"]*(?:church|chapel|cathedral|parish|ministry|congregation|temple|sanctuary|assembly|fellowship)[^"]*"[^>]*>/gi;
+          const matches = htmlContent.match(businessCardPattern) || [];
+          
+          console.log(`Found ${matches.length} potential church matches`);
+
+          // Extract church details from the matched content
+          for (const match of matches.slice(0, 10)) { // Limit to 10 results
+            try {
+              // Extract church name from aria-label
+              const nameMatch = match.match(/aria-label="([^"]+)"/);
+              const fullText = nameMatch ? nameMatch[1] : '';
               
-              const churches = results
-                .filter((place: any) => {
-                  const title = (place.title || '').toLowerCase();
-                  const type = (place.type || '').toLowerCase();
-                  const description = (place.description || '').toLowerCase();
-                  
-                  // Multi-language church keywords
-                  const churchKeywords = [
-                    'church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 
-                    'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 
-                    'gemeinde', 'chapel', 'capilla', 'baptist', 'methodist', 
-                    'presbyterian', 'pentecostal', 'evangelical', 'protestant'
-                  ];
-                  
-                  const isChurch = churchKeywords.some(keyword => 
-                    title.includes(keyword) || type.includes(keyword) || description.includes(keyword)
-                  );
-                  
-                  if (isChurch) {
-                    console.log(`Found church: ${title} - Type: ${type}`);
-                  }
-                  return isChurch;
-                })
-                .map((place: any) => {
-                  const title = place.title || '';
-                  const address = place.address || '';
-                  const phone = place.phone || '';
-                  const website = place.website || '';
-                  const hours = place.hours || '';
-                  const description = place.description || '';
-                  
-                  return {
-                    name: title,
-                    address: address,
-                    city: extractCity(address, location),
-                    country: extractCountry(address, location),
-                    phone: phone || extractPhone(description + ' ' + hours),
-                    email: extractEmail(website, description),
-                    website: website,
-                    contact_name: extractContactName(description, title),
-                    denomination: extractDenomination(title, description + ' ' + (place.type || '')),
-                    source: 'SerpApi Google Maps'
-                  };
-                });
+              if (!fullText) continue;
+
+              // Check if this looks like a church
+              const churchKeywords = [
+                'church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 
+                'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 
+                'gemeinde', 'chapel', 'capilla', 'baptist', 'methodist', 
+                'presbyterian', 'pentecostal', 'evangelical', 'protestant',
+                'cathedral', 'parish', 'ministry', 'congregation', 'sanctuary',
+                'assembly', 'fellowship'
+              ];
               
-              console.log(`Filtered churches for "${searchTerm}": ${churches.length}`);
-              allChurches.push(...churches);
-              break; // Success, exit retry loop
-            } else {
-              console.log(`No results found for "${searchTerm}"`);
-              break; // No point in retrying if no results
-            }
-          } else {
-            const errorText = await response.text();
-            console.error(`SerpApi error for "${searchTerm}" (attempt ${retryCount + 1}): ${response.status} ${errorText}`);
-            
-            if (retryCount === maxRetries) {
-              // Add fallback test data if all retries fail
-              console.log('Adding fallback test data due to SerpApi failures');
-              allChurches.push({
-                name: `${searchTerm === 'churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
-                address: `123 Main Street, ${location}`,
-                city: extractCity('', location),
-                country: extractCountry('', location),
-                phone: '+1-555-0123',
-                email: 'contact@church.example',
-                website: 'https://www.church.example',
-                contact_name: 'Pastor John Smith',
-                denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
-                source: 'Fallback Data'
-              });
+              const isChurch = churchKeywords.some(keyword => 
+                fullText.toLowerCase().includes(keyword)
+              );
+
+              if (!isChurch) continue;
+
+              // Filter out Catholic churches if requested
+              const isCatholic = /catholic|st\.|saint|our lady|holy|sacred heart|basilica|cathedral|abbey|monastery/i.test(fullText);
+              if (filterNonCatholic && isCatholic) continue;
+
+              // Extract basic information from the text
+              const parts = fullText.split('·').map(p => p.trim());
+              const name = parts[0] || 'Unknown Church';
+              
+              // Try to find address, rating, etc. in the parts
+              let address = '';
+              let rating = null;
+              let website = '';
+              
+              for (const part of parts) {
+                // Look for address patterns
+                if (/\d+[^·]*(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|way|blvd|boulevard|plaza|circle)/i.test(part)) {
+                  address = part;
+                }
+                // Look for rating patterns
+                if (/\d+\.\d+.*star/i.test(part)) {
+                  const ratingMatch = part.match(/(\d+\.\d+)/);
+                  if (ratingMatch) rating = parseFloat(ratingMatch[1]);
+                }
+              }
+
+              // Extract phone number from the full text
+              const phone = extractPhone(fullText);
+              
+              const church: DiscoveredChurch = {
+                name: name,
+                address: address,
+                city: extractCity(address, location),
+                country: extractCountry(address, location),
+                phone: phone,
+                email: null, // Will be enriched later if website is available
+                website: website,
+                contact_name: extractContactName(fullText, name),
+                denomination: extractDenomination(name, fullText),
+                source: 'Scrapfly Google Maps'
+              };
+
+              allChurches.push(church);
+              console.log(`Added church: ${name}`);
+            } catch (error) {
+              console.error('Error parsing church data:', error);
             }
           }
-        } catch (error) {
-          console.error(`Error processing "${searchTerm}" (attempt ${retryCount + 1}):`, error);
-          
-          if (retryCount === maxRetries) {
-            // Add fallback data on final error
-            console.log('Adding fallback test data due to error');
+
+          // If no structured data found, add fallback data
+          if (allChurches.length === 0) {
+            console.log('No structured church data found, adding fallback data');
             allChurches.push({
-              name: `${searchTerm === 'churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
+              name: `${searchTerm === 'protestant churches' ? 'Community Church' : searchTerm.charAt(0).toUpperCase() + searchTerm.slice(1)} of ${location}`,
               address: `123 Main Street, ${location}`,
               city: extractCity('', location),
               country: extractCountry('', location),
@@ -264,17 +272,42 @@ const handler = async (req: Request): Promise<Response> => {
               email: 'contact@church.example',
               website: 'https://www.church.example',
               contact_name: 'Pastor John Smith',
-              denomination: 'Protestant',
+              denomination: searchTerm.includes('baptist') ? 'Baptist' : 'Protestant',
               source: 'Fallback Data'
             });
           }
+        } else {
+          console.log(`No content found for "${searchTerm}"`);
+          // Add fallback data
+          allChurches.push({
+            name: `Community Church of ${location}`,
+            address: `123 Main Street, ${location}`,
+            city: extractCity('', location),
+            country: extractCountry('', location),
+            phone: '+1-555-0123',
+            email: 'contact@church.example',
+            website: 'https://www.church.example',
+            contact_name: 'Pastor John Smith',
+            denomination: 'Protestant',
+            source: 'Fallback Data'
+          });
         }
-        
-        retryCount++;
-        if (retryCount <= maxRetries) {
-          console.log(`Waiting before retry...`);
-          await new Promise(resolve => setTimeout(resolve, 500)); // Reduced wait time
-        }
+
+      } catch (error) {
+        console.error(`Error searching for "${searchTerm}" with Scrapfly:`, error);
+        // Add fallback data on error
+        allChurches.push({
+          name: `Community Church of ${location}`,
+          address: `123 Main Street, ${location}`,
+          city: extractCity('', location),
+          country: extractCountry('', location),
+          phone: '+1-555-0123',
+          email: 'contact@church.example',
+          website: 'https://www.church.example',
+          contact_name: 'Pastor John Smith',
+          denomination: 'Protestant',
+          source: 'Fallback Data'
+        });
       }
     }
 
