@@ -170,7 +170,12 @@ const handler = async (req: Request): Promise<Response> => {
         if (!response.ok) {
           const errorText = await response.text();
           console.error(`Scrapfly error: ${response.status} ${errorText}`);
-          throw new Error(`Scrapfly error: ${response.status}`);
+          console.log(`Scrapfly failed for "${searchTerm}", trying SerpApi...`);
+          
+          // Try SerpApi as fallback
+          const serpApiChurches = await searchChurchesWithSerpApi(searchTerm, location, filterNonCatholic);
+          allChurches.push(...serpApiChurches);
+          continue;
         }
 
         const data = await response.json();
@@ -336,6 +341,89 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+// ============= SERPAPI INTEGRATION =============
+
+async function searchChurchesWithSerpApi(searchTerm: string, location: string, filterNonCatholic: boolean): Promise<DiscoveredChurch[]> {
+  const serpApiKey = Deno.env.get('SERPAPI_KEY');
+  if (!serpApiKey) {
+    console.error('SERPAPI_KEY not found in environment');
+    return [];
+  }
+
+  try {
+    const query = `${searchTerm} in ${location}`;
+    const serpApiUrl = `https://serpapi.com/search.json?engine=google_maps&q=${encodeURIComponent(query)}&api_key=${serpApiKey}`;
+    
+    console.log(`SerpApi search for: "${query}"`);
+    
+    const response = await fetch(serpApiUrl);
+    const serpResult = await response.json();
+    
+    if (!response.ok || serpResult.error) {
+      console.error('SerpApi error:', serpResult.error || `HTTP ${response.status}`);
+      return [];
+    }
+
+    const churches: DiscoveredChurch[] = [];
+    const localResults = serpResult.local_results || [];
+    
+    console.log(`SerpApi found ${localResults.length} results for "${searchTerm}"`);
+
+    for (const result of localResults) {
+      try {
+        // Filter for church-related keywords
+        const churchKeywords = [
+          'church', 'chapel', 'cathedral', 'basilica', 'parish', 'ministry',
+          'christian', 'baptist', 'methodist', 'presbyterian', 'episcopal',
+          'pentecostal', 'lutheran', 'congregational', 'reformed', 'evangelical',
+          'assembly', 'fellowship'
+        ];
+        
+        const isChurch = churchKeywords.some(keyword => 
+          result.title?.toLowerCase().includes(keyword) ||
+          result.type?.toLowerCase().includes(keyword)
+        );
+
+        if (!isChurch) continue;
+
+        // Filter out Catholic churches if requested
+        const isCatholic = /catholic|st\.|saint|our lady|holy|sacred heart|basilica|cathedral|abbey|monastery/i.test(result.title || '');
+        if (filterNonCatholic && isCatholic) continue;
+
+        const church: DiscoveredChurch = {
+          name: result.title || 'Unknown Church',
+          address: result.address || `${location}`,
+          city: extractCity(result.address || '', location),
+          country: extractCountry(result.address || '', location),
+          phone: result.phone || '',
+          email: '',
+          website: result.website || '',
+          contact_name: extractContactName(result.title || '', result.title || ''),
+          denomination: extractDenomination(result.title || '', result.title || ''),
+          source: 'SerpApi Google Maps',
+          social_media: {
+            facebook: '',
+            instagram: '',
+            twitter: '',
+            youtube: '',
+            linkedin: ''
+          }
+        };
+
+        churches.push(church);
+        console.log(`SerpApi added church: ${church.name}`);
+      } catch (error) {
+        console.error('Error parsing SerpApi result:', error);
+      }
+    }
+
+    return churches;
+  } catch (error) {
+    console.error('SerpApi request failed:', error);
+    return [];
+  }
+}
 
 // Function to extract churches with social media from HTML content
 function extractChurchesWithSocialMedia(htmlContent: string): Array<{
