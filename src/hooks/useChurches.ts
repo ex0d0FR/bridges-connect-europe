@@ -118,10 +118,14 @@ export const useUpdateChurch = () => {
         .update(churchData)
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;
+      }
+
+      if (!data) {
+        throw new Error('No church found or you do not have permission to update this church');
       }
 
       return data;
