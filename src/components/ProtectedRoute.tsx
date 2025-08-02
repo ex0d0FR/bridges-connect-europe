@@ -1,17 +1,18 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
 import { useProfile } from "@/hooks/useProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading: authLoading } = useAuth();
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { data: profile, isLoading: profileLoading, refetch } = useProfile();
 
   if (authLoading || profileLoading) {
     return (
@@ -74,6 +75,24 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
               <p className="text-sm text-muted-foreground">
                 Status: <span className="font-medium capitalize">{profile.status}</span>
               </p>
+            </div>
+            
+            <div className="flex gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => refetch()} 
+                className="flex-1"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Check Status
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={signOut} 
+                className="flex-1"
+              >
+                Sign Out
+              </Button>
             </div>
           </CardContent>
         </Card>
