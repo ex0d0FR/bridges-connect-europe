@@ -249,6 +249,42 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["user_status"]
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           apify_api_token: string | null
@@ -345,14 +381,49 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _user_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
+      is_user_approved: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role: "admin" | "user"
       campaign_status: "draft" | "active" | "paused" | "completed" | "cancelled"
       message_status:
         | "pending"
@@ -363,6 +434,7 @@ export type Database = {
         | "replied"
         | "failed"
       message_type: "email" | "sms" | "whatsapp"
+      user_status: "pending" | "approved" | "rejected" | "suspended"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -490,6 +562,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       campaign_status: ["draft", "active", "paused", "completed", "cancelled"],
       message_status: [
         "pending",
@@ -501,6 +574,7 @@ export const Constants = {
         "failed",
       ],
       message_type: ["email", "sms", "whatsapp"],
+      user_status: ["pending", "approved", "rejected", "suspended"],
     },
   },
 } as const

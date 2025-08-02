@@ -26,9 +26,11 @@ import {
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router-dom"
 import { useLanguage } from "@/contexts/LanguageContext"
+import { useIsAdmin } from "@/hooks/useProfile"
 
 export function AppSidebar() {
   const { t } = useLanguage();
+  const isAdmin = useIsAdmin();
 
   const menuItems = [
     {
@@ -64,6 +66,11 @@ export function AppSidebar() {
   ];
 
   const bottomMenuItems = [
+    ...(isAdmin ? [{
+      title: "User Management",
+      url: "/user-management",
+      icon: Users,
+    }] : []),
     {
       title: t('navigation.settings'),
       url: "/settings",

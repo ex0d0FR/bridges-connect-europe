@@ -20,6 +20,7 @@ import CampaignDetails from "./pages/CampaignDetails";
 import Templates from "./pages/Templates";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import UserManagement from "./pages/UserManagement";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,7 @@ const AppContent = () => {
               <Route path="/templates" element={<Templates />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/user-management" element={<UserManagement />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
