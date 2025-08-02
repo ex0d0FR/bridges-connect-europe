@@ -130,13 +130,21 @@ const handler = async (req: Request): Promise<Response> => {
 
       const scrapflyApiKey = Deno.env.get('SCRAPFLY_API_KEY');
       const apifyApiKey = Deno.env.get('APIFY_API_KEY');
+      const brightDataApiKey = Deno.env.get('BRIGHT_DATA_API_KEY');
       
-      if (!scrapflyApiKey) {
-        throw new Error('Scrapfly API key not configured');
+      // Check which scraping services are available
+      const availableServices = [];
+      if (scrapflyApiKey) availableServices.push('Scrapfly');
+      if (brightDataApiKey) availableServices.push('Bright Data');
+      
+      if (availableServices.length === 0) {
+        throw new Error('No scraping service API keys configured. Please configure SCRAPFLY_API_KEY or BRIGHT_DATA_API_KEY');
       }
 
       console.log('SCRAPFLY_API_KEY available:', !!scrapflyApiKey);
       console.log('APIFY_API_KEY available:', !!apifyApiKey);
+      console.log('BRIGHT_DATA_API_KEY available:', !!brightDataApiKey);
+      console.log('Available scraping services:', availableServices.join(', '));
       console.log(`Starting real data collection with Scrapfly for: ${location}`);
     
     // Determine language and region based on location
@@ -155,33 +163,61 @@ const handler = async (req: Request): Promise<Response> => {
         const encodedQuery = encodeURIComponent(searchQuery);
         const googleMapsUrl = `https://www.google.com/maps/search/${encodedQuery}`;
         
-        // Scrapfly API call
-        const scrapflyUrl = new URL('https://api.scrapfly.io/scrape');
-        scrapflyUrl.searchParams.append('key', scrapflyApiKey);
-        scrapflyUrl.searchParams.append('url', googleMapsUrl);
-        scrapflyUrl.searchParams.append('render_js', 'true');
-        scrapflyUrl.searchParams.append('wait', '3000');
-        scrapflyUrl.searchParams.append('format', 'json');
-        scrapflyUrl.searchParams.append('country', region);
+        // Try scraping services in order of preference: Scrapfly first, then Bright Data
+        let response: Response | null = null;
+        let serviceUsed = '';
+        
+        if (scrapflyApiKey) {
+          try {
+            console.log(`Trying Scrapfly for: ${searchTerm}`);
+            const scrapflyUrl = new URL('https://api.scrapfly.io/scrape');
+            scrapflyUrl.searchParams.append('key', scrapflyApiKey);
+            scrapflyUrl.searchParams.append('url', googleMapsUrl);
+            scrapflyUrl.searchParams.append('render_js', 'true');
+            scrapflyUrl.searchParams.append('wait', '3000');
+            scrapflyUrl.searchParams.append('format', 'json');
+            scrapflyUrl.searchParams.append('country', region);
 
-        const response = await fetch(scrapflyUrl.toString());
-        console.log(`Scrapfly Response Status: ${response.status}`);
+            response = await fetch(scrapflyUrl.toString());
+            serviceUsed = 'Scrapfly';
+            console.log(`Scrapfly Response Status: ${response.status}`);
+          } catch (error) {
+            console.error(`Scrapfly error: ${error.message}`);
+            response = null;
+          }
+        }
+        
+        // If Scrapfly failed or unavailable, try Bright Data
+        if ((!response || !response.ok) && brightDataApiKey) {
+          try {
+            console.log(`Trying Bright Data for: ${searchTerm}`);
+            response = await searchWithBrightData(googleMapsUrl, brightDataApiKey, region);
+            serviceUsed = 'Bright Data';
+            console.log(`Bright Data Response Status: ${response.status}`);
+          } catch (error) {
+            console.error(`Bright Data error: ${error.message}`);
+            response = null;
+          }
+        }
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Scrapfly error: ${response.status} ${errorText}`);
-          console.log(`Scrapfly failed for "${searchTerm}", trying SerpApi...`);
+        if (!response || !response.ok) {
+          const errorText = response ? await response.text() : 'No response';
+          console.error(`All scraping services failed for "${searchTerm}": ${errorText}`);
+          console.log(`Trying SerpApi as final fallback...`);
           
-          // Try SerpApi as fallback
+          // Try SerpApi as final fallback
           const serpApiChurches = await searchChurchesWithSerpApi(searchTerm, location, filterNonCatholic);
           allChurches.push(...serpApiChurches);
           continue;
         }
 
         const data = await response.json();
-        console.log(`Scrapfly response received for "${searchTerm}"`);
+        console.log(`${serviceUsed} response received for "${searchTerm}"`);
 
-        if (data.result?.content) {
+        // Handle different response formats based on service used
+        const htmlContent = serviceUsed === 'Bright Data' ? data.html : data.result?.content;
+        
+        if (htmlContent) {
           // Parse the HTML content to extract church information
           const htmlContent = data.result.content;
           console.log(`HTML content length: ${htmlContent.length} characters`);
@@ -225,7 +261,7 @@ const handler = async (req: Request): Promise<Response> => {
                 website: churchData.website,
                 contact_name: extractContactName(churchData.name + ' ' + (churchData.address || ''), churchData.name),
                 denomination: extractDenomination(churchData.name, churchData.name),
-                source: 'Scrapfly Google Maps',
+                source: `${serviceUsed} Google Maps`,
                 social_media: churchData.socialMedia
               };
 
@@ -341,6 +377,52 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+// ============= BRIGHT DATA INTEGRATION =============
+
+async function searchWithBrightData(url: string, apiKey: string, region: string): Promise<Response> {
+  try {
+    // Bright Data Web Scraper API endpoint
+    const brightDataUrl = 'https://api.brightdata.com/request';
+    
+    const payload = {
+      url: url,
+      format: 'json',
+      render_js: true,
+      wait: 3000,
+      country: region.toUpperCase(),
+      device_type: 'desktop',
+      response_format: 'json'
+    };
+
+    const response = await fetch(brightDataUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Bright Data API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Transform Bright Data response to match expected format
+    return new Response(JSON.stringify({
+      html: data.content || data.html || data.body
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+  } catch (error) {
+    console.error('Bright Data API error:', error);
+    throw error;
+  }
+}
 
 // ============= SERPAPI INTEGRATION =============
 
