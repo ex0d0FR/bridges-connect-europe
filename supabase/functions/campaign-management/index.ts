@@ -209,6 +209,9 @@ const handler = async (req: Request): Promise<Response> => {
           // Send the actual message based on type
           if (template.type === 'email') {
             const { error: emailError } = await supabase.functions.invoke('send-email', {
+              headers: {
+                'Authorization': authHeader,
+              },
               body: {
                 to: church.email,
                 subject: template.subject || `Message from ${campaign.name}`,
@@ -235,6 +238,9 @@ const handler = async (req: Request): Promise<Response> => {
             }
           } else if (template.type === 'sms') {
             const { error: smsError } = await supabase.functions.invoke('send-sms', {
+              headers: {
+                'Authorization': authHeader,
+              },
               body: {
                 to: church.phone,
                 content: template.content,
@@ -260,6 +266,9 @@ const handler = async (req: Request): Promise<Response> => {
             }
           } else if (template.type === 'whatsapp') {
             const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
+              headers: {
+                'Authorization': authHeader,
+              },
               body: {
                 recipient_phone: church.phone,
                 message_body: template.content,
