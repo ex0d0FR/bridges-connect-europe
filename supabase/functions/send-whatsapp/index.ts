@@ -16,6 +16,27 @@ interface WhatsAppMessage {
   isTest?: boolean
 }
 
+// Validate Evolution API configuration
+function validateEvolutionConfig(apiUrl: string, apiKey: string, instanceName: string) {
+  const errors = [];
+  
+  if (!apiUrl) {
+    errors.push('EVOLUTION_API_URL is required');
+  } else if (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')) {
+    errors.push('EVOLUTION_API_URL cannot be localhost - use ngrok or a public URL');
+  }
+  
+  if (!apiKey) {
+    errors.push('EVOLUTION_API_KEY is required');
+  }
+  
+  if (!instanceName) {
+    errors.push('EVOLUTION_INSTANCE_NAME is required');
+  }
+  
+  return errors;
+}
+
 // Evolution API function
 async function sendViaEvolution(
   apiUrl: string,
@@ -27,8 +48,15 @@ async function sendViaEvolution(
 ) {
   const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
 
+  // Validate configuration
+  const configErrors = validateEvolutionConfig(apiUrl, apiKey, instanceName);
+  if (configErrors.length > 0) {
+    throw new Error(`Evolution API configuration errors: ${configErrors.join(', ')}`);
+  }
+
   // Evolution API endpoint for sending messages
   const evolutionEndpoint = `${apiUrl}/message/sendText/${instanceName}`;
+  console.log('Evolution API endpoint:', evolutionEndpoint);
 
   // Format phone number (Evolution API expects numbers without + prefix)
   const formattedPhone = recipient_phone.replace(/^\+/, '');
@@ -42,17 +70,37 @@ async function sendViaEvolution(
 
   console.log('Sending Evolution API message:', JSON.stringify(evolutionPayload, null, 2));
 
-  // Send to Evolution API
-  const evolutionResponse = await fetch(evolutionEndpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'apikey': apiKey,
-    },
-    body: JSON.stringify(evolutionPayload),
-  });
+  let evolutionResponse;
+  let evolutionResult;
 
-  const evolutionResult = await evolutionResponse.json();
+  try {
+    // Send to Evolution API with timeout
+    evolutionResponse = await Promise.race([
+      fetch(evolutionEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey,
+        },
+        body: JSON.stringify(evolutionPayload),
+      }),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Evolution API request timeout (10s)')), 10000)
+      )
+    ]) as Response;
+
+    evolutionResult = await evolutionResponse.json();
+  } catch (error) {
+    console.error('Evolution API connection error:', error);
+    
+    if (error.message.includes('Connection refused') || error.message.includes('ECONNREFUSED')) {
+      throw new Error(`Cannot connect to Evolution API at ${apiUrl}. Please check that the API is running and accessible.`);
+    } else if (error.message.includes('timeout')) {
+      throw new Error(`Evolution API request timeout. The API at ${apiUrl} is not responding.`);
+    } else {
+      throw new Error(`Evolution API connection failed: ${error.message}`);
+    }
+  }
 
   if (!evolutionResponse.ok) {
     console.error('Evolution API error details:', {
@@ -155,18 +203,31 @@ serve(async (req) => {
     const requestBody = await req.json();
     const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId, provider = 'whatsapp' }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string, provider?: 'whatsapp' | 'evolution' } = requestBody;
 
-    // Check which provider to use
+    // Check configuration and determine provider
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
+    const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
+
+    const hasEvolutionConfig = evolutionApiUrl && evolutionApiKey && evolutionInstance;
+    const hasWhatsAppConfig = whatsappAccessToken && whatsappPhoneNumberId;
+
+    console.log('Configuration check:', {
+      hasEvolutionConfig,
+      hasWhatsAppConfig,
+      requestedProvider: provider,
+      evolutionApiUrl: evolutionApiUrl ? `${evolutionApiUrl.substring(0, 20)}...` : 'not set'
+    });
+
+    // Determine which provider to use
     const useEvolution = provider === 'evolution' || 
-      (!Deno.env.get('WHATSAPP_ACCESS_TOKEN') && Deno.env.get('EVOLUTION_API_URL'));
+      (hasEvolutionConfig && !hasWhatsAppConfig) ||
+      (hasEvolutionConfig && provider !== 'whatsapp');
 
     if (useEvolution) {
-      // Evolution API configuration
-      const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-      const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-      const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
-
-      if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
-        throw new Error('Evolution API credentials not configured. Please set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME');
+      if (!hasEvolutionConfig) {
+        throw new Error('Evolution API credentials not configured. Please set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME in your secrets.');
       }
 
       console.log('Using Evolution API for WhatsApp message');
@@ -184,122 +245,123 @@ serve(async (req) => {
         user
       }, supabaseClient, corsHeaders);
     } else {
-      // WhatsApp Business API configuration
-      const whatsappApiUrl = `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`
-      const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
-
-      if (!accessToken || !Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')) {
-        throw new Error('WhatsApp Business API credentials not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID');
+      if (!hasWhatsAppConfig) {
+        throw new Error('WhatsApp Business API credentials not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in your secrets.');
       }
 
       console.log('Using WhatsApp Business API for message');
-    }
+      
+      // WhatsApp Business API implementation
+      const whatsappApiUrl = `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}/messages`;
+      const accessToken = whatsappAccessToken;
 
-    let messagePayload: any
+      let messagePayload: any
 
-    if (message_type === 'template' && template_name) {
-      // Send template message
-      messagePayload = {
-        messaging_product: 'whatsapp',
-        to: recipient_phone,
-        type: 'template',
-        template: {
-          name: template_name,
-          language: {
-            code: language_code
+      if (message_type === 'template' && template_name) {
+        // Send template message
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          to: recipient_phone,
+          type: 'template',
+          template: {
+            name: template_name,
+            language: {
+              code: language_code
+            }
+          }
+        }
+
+        if (template_components && template_components.length > 0) {
+          messagePayload.template.components = template_components
+        }
+      } else {
+        // Send text message
+        messagePayload = {
+          messaging_product: 'whatsapp',
+          to: recipient_phone,
+          type: 'text',
+          text: {
+            body: message_body
           }
         }
       }
 
-      if (template_components && template_components.length > 0) {
-        messagePayload.template.components = template_components
-      }
-    } else {
-      // Send text message
-      messagePayload = {
-        messaging_product: 'whatsapp',
-        to: recipient_phone,
-        type: 'text',
-        text: {
-          body: message_body
-        }
-      }
-    }
+      console.log('Sending WhatsApp message:', JSON.stringify(messagePayload, null, 2))
 
-    console.log('Sending WhatsApp message:', JSON.stringify(messagePayload, null, 2))
-
-    // Send to WhatsApp Business API
-    const whatsappResponse = await fetch(whatsappApiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(messagePayload),
-    })
-
-    const whatsappResult = await whatsappResponse.json()
-
-    if (!whatsappResponse.ok) {
-      console.error('WhatsApp API error details:', {
-        status: whatsappResponse.status,
-        statusText: whatsappResponse.statusText,
-        response: whatsappResult,
-        phoneNumber: recipient_phone,
-        phoneNumberId: Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')
+      // Send to WhatsApp Business API
+      const whatsappResponse = await fetch(whatsappApiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(messagePayload),
       })
-      
-      // Check for specific token expiration error
-      if (whatsappResult.error?.code === 190) {
-        throw new Error(`WhatsApp access token has expired. Please update your token in the settings. Error: ${whatsappResult.error.message}`)
-      }
-      
-      // Check for invalid phone number format
-      if (whatsappResult.error?.code === 131000) {
-        throw new Error(`Invalid phone number format: ${recipient_phone}. Please use international format (+country_code_phone_number)`)
-      }
-      
-      throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'} (Code: ${whatsappResult.error?.code || 'unknown'})`)
-    }
 
-    console.log('WhatsApp message sent successfully:', whatsappResult)
+      const whatsappResult = await whatsappResponse.json()
 
-    // Log to database if not a test message
-    if (!isTest && churchId && campaignId) {
-      const { error: dbError } = await supabaseClient
-        .from('messages')
-        .insert({
-          type: 'whatsapp',
-          church_id: churchId,
-          campaign_id: campaignId,
-          template_id: templateId,
-          content: message_body,
-          recipient_phone: recipient_phone,
+      if (!whatsappResponse.ok) {
+        console.error('WhatsApp API error details:', {
+          status: whatsappResponse.status,
+          statusText: whatsappResponse.statusText,
+          response: whatsappResult,
+          phoneNumber: recipient_phone,
+          phoneNumberId: whatsappPhoneNumberId
+        })
+        
+        // Check for specific token expiration error
+        if (whatsappResult.error?.code === 190) {
+          throw new Error(`WhatsApp access token has expired. Please update your token in the settings. Error: ${whatsappResult.error.message}`)
+        }
+        
+        // Check for invalid phone number format
+        if (whatsappResult.error?.code === 131000) {
+          throw new Error(`Invalid phone number format: ${recipient_phone}. Please use international format (+country_code_phone_number)`)
+        }
+        
+        throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'} (Code: ${whatsappResult.error?.code || 'unknown'})`)
+      }
+
+      console.log('WhatsApp message sent successfully:', whatsappResult)
+
+      // Log to database if not a test message
+      if (!isTest && churchId && campaignId) {
+        const { error: dbError } = await supabaseClient
+          .from('messages')
+          .insert({
+            type: 'whatsapp',
+            church_id: churchId,
+            campaign_id: campaignId,
+            template_id: templateId,
+            content: message_body,
+            recipient_phone: recipient_phone,
+            status: 'sent',
+            external_id: whatsappResult.messages?.[0]?.id,
+            sent_at: new Date().toISOString(),
+            created_by: user.id
+          });
+
+        if (dbError) {
+          console.error('Error logging WhatsApp message to database:', dbError);
+        }
+      } else {
+        console.log('Test message - skipping database logging');
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message_id: whatsappResult.messages?.[0]?.id,
           status: 'sent',
-          external_id: whatsappResult.messages?.[0]?.id,
-          sent_at: new Date().toISOString(),
-          created_by: user.id
-        });
-
-      if (dbError) {
-        console.error('Error logging WhatsApp message to database:', dbError);
-      }
-    } else {
-      console.log('Test message - skipping database logging');
+          whatsapp_response: whatsappResult,
+          provider: 'whatsapp'
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        },
+      )
     }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message_id: whatsappResult.messages?.[0]?.id,
-        status: 'sent',
-        whatsapp_response: whatsappResult
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      },
-    )
 
   } catch (error) {
     console.error('Error sending WhatsApp message:', error)
