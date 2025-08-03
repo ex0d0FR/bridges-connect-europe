@@ -254,7 +254,10 @@ const handler = async (req: Request): Promise<Response> => {
               console.error(`Error sending SMS to ${church.name}:`, smsError);
               await supabase
                 .from('messages')
-                .update({ status: 'failed', failed_reason: smsError.message })
+                .update({ 
+                  status: 'failed', 
+                  failed_reason: smsError.message || `SMS sending failed for ${church.name}`
+                })
                 .eq('id', messageRecord.id);
               failureCount++;
             } else {
@@ -283,7 +286,10 @@ const handler = async (req: Request): Promise<Response> => {
               console.error(`Error sending WhatsApp to ${church.name}:`, whatsappError);
               await supabase
                 .from('messages')
-                .update({ status: 'failed', failed_reason: whatsappError.message })
+                .update({ 
+                  status: 'failed', 
+                  failed_reason: whatsappError.message || `WhatsApp sending failed for ${church.name}`
+                })
                 .eq('id', messageRecord.id);
               failureCount++;
             } else {

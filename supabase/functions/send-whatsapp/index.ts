@@ -218,7 +218,9 @@ serve(async (req) => {
       hasEvolutionConfig,
       hasWhatsAppConfig,
       requestedProvider: provider,
-      evolutionApiUrl: evolutionApiUrl ? `${evolutionApiUrl.substring(0, 20)}...` : 'not set'
+      evolutionApiUrl: evolutionApiUrl ? `${evolutionApiUrl.substring(0, 20)}...` : 'not set',
+      recipient: recipient_phone,
+      messageType: message_type || 'text'
     });
 
     // Determine which provider to use

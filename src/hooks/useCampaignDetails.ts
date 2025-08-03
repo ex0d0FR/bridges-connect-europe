@@ -194,7 +194,7 @@ export const useRetryFailedMessages = () => {
               functionName = 'send-sms'
               requestBody = {
                 to: message.recipient_phone,
-                message: message.content, // Use 'message' instead of 'content' for SMS
+                content: message.content, // Use 'content' to match send-sms function
                 templateId: message.template_id,
                 campaignId: message.campaign_id,
                 churchId: message.church_id
@@ -215,14 +215,33 @@ export const useRetryFailedMessages = () => {
               throw new Error(`Unsupported message type: ${message.type}`)
           }
 
-          const { error: retryError } = await supabase.functions.invoke(functionName, {
+          const { data, error: retryError } = await supabase.functions.invoke(functionName, {
             body: requestBody
           })
 
           if (retryError) {
             console.error(`Failed to retry message ${message.id}:`, retryError)
-            return { success: false, messageId: message.id, error: retryError }
+            
+            // Update message status to failed with detailed error
+            await supabase
+              .from('messages')
+              .update({ 
+                status: 'failed', 
+                failed_reason: retryError.message || 'Unknown retry error'
+              })
+              .eq('id', message.id)
+            
+            return { success: false, messageId: message.id, error: retryError.message || retryError }
           }
+
+          // Update message status to sent on success
+          await supabase
+            .from('messages')
+            .update({ 
+              status: 'sent', 
+              sent_at: new Date().toISOString()
+            })
+            .eq('id', message.id)
 
           return { success: true, messageId: message.id }
         } catch (error) {
