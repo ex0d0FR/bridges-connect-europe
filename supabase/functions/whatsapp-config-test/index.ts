@@ -11,6 +11,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Check authorization header for security
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader || !authHeader.includes('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - Authentication required' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
     // Get all WhatsApp configuration variables
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');

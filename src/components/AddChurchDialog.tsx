@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select";
 import { Plus, Loader2 } from "lucide-react";
 import { useCreateChurch, CreateChurchData } from "@/hooks/useChurches";
+import { validateEmail, validatePhone, validateUrl, sanitizeText, formatPhoneNumber } from "@/lib/validation";
+import { toast } from "sonner";
 
 interface AddChurchDialogProps {
   trigger?: React.ReactNode;
@@ -49,9 +51,47 @@ const AddChurchDialog = ({ trigger }: AddChurchDialogProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Filter out empty strings
+    // Validate required fields
+    if (!formData.name.trim()) {
+      toast.error("Church name is required");
+      return;
+    }
+
+    // Validate email if provided
+    if (formData.email && !validateEmail(formData.email)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    // Validate phone if provided
+    if (formData.phone && !validatePhone(formData.phone)) {
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
+    // Validate URLs if provided
+    if (formData.website && !validateUrl(formData.website)) {
+      toast.error("Please enter a valid website URL");
+      return;
+    }
+    if (formData.facebook && !validateUrl(formData.facebook)) {
+      toast.error("Please enter a valid Facebook URL");
+      return;
+    }
+
+    // Sanitize and prepare data
     const cleanedData = Object.fromEntries(
-      Object.entries(formData).filter(([_, value]) => value !== "")
+      Object.entries(formData)
+        .filter(([_, value]) => value !== "")
+        .map(([key, value]) => {
+          if (key === 'phone' && value) {
+            return [key, formatPhoneNumber(value)];
+          }
+          if (typeof value === 'string') {
+            return [key, sanitizeText(value)];
+          }
+          return [key, value];
+        })
     ) as CreateChurchData;
 
     await createChurch.mutateAsync(cleanedData);
