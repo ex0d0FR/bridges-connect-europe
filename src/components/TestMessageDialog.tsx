@@ -67,6 +67,7 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
           recipient_phone: formData.phone,
           message_body: template.content,
           message_type: 'text',
+          provider: 'evolution', // Prefer Evolution API
           isTest: true
         }
       } else {

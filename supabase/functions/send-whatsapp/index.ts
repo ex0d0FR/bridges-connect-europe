@@ -16,6 +16,97 @@ interface WhatsAppMessage {
   isTest?: boolean
 }
 
+// Evolution API function
+async function sendViaEvolution(
+  apiUrl: string,
+  apiKey: string,
+  instanceName: string,
+  messageData: any,
+  supabaseClient: any,
+  corsHeaders: any
+) {
+  const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
+
+  // Evolution API endpoint for sending messages
+  const evolutionEndpoint = `${apiUrl}/message/sendText/${instanceName}`;
+
+  // Format phone number (Evolution API expects numbers without + prefix)
+  const formattedPhone = recipient_phone.replace(/^\+/, '');
+
+  const evolutionPayload = {
+    number: formattedPhone,
+    textMessage: {
+      text: message_body
+    }
+  };
+
+  console.log('Sending Evolution API message:', JSON.stringify(evolutionPayload, null, 2));
+
+  // Send to Evolution API
+  const evolutionResponse = await fetch(evolutionEndpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'apikey': apiKey,
+    },
+    body: JSON.stringify(evolutionPayload),
+  });
+
+  const evolutionResult = await evolutionResponse.json();
+
+  if (!evolutionResponse.ok) {
+    console.error('Evolution API error details:', {
+      status: evolutionResponse.status,
+      statusText: evolutionResponse.statusText,
+      response: evolutionResult,
+      phoneNumber: recipient_phone,
+      instanceName: instanceName
+    });
+    
+    throw new Error(`Evolution API error: ${evolutionResult.message || 'Unknown error'} (Status: ${evolutionResponse.status})`);
+  }
+
+  console.log('Evolution API message sent successfully:', evolutionResult);
+
+  // Log to database if not a test message
+  if (!isTest && churchId && campaignId) {
+    const { error: dbError } = await supabaseClient
+      .from('messages')
+      .insert({
+        type: 'whatsapp',
+        church_id: churchId,
+        campaign_id: campaignId,
+        template_id: templateId,
+        content: message_body,
+        recipient_phone: recipient_phone,
+        status: 'sent',
+        external_id: evolutionResult.key?.id || evolutionResult.messageId,
+        sent_at: new Date().toISOString(),
+        created_by: user.id
+      });
+
+    if (dbError) {
+      console.error('Error logging Evolution API message to database:', dbError);
+    }
+  } else {
+    console.log('Test message - skipping database logging');
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message_id: evolutionResult.key?.id || evolutionResult.messageId,
+      status: 'sent',
+      evolution_response: evolutionResult,
+      provider: 'evolution'
+    }),
+    {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    },
+  );
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -62,14 +153,46 @@ serve(async (req) => {
     }
 
     const requestBody = await req.json();
-    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string } = requestBody;
+    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId, provider = 'whatsapp' }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string, provider?: 'whatsapp' | 'evolution' } = requestBody;
 
-    // WhatsApp Business API configuration
-    const whatsappApiUrl = `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`
-    const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
+    // Check which provider to use
+    const useEvolution = provider === 'evolution' || 
+      (!Deno.env.get('WHATSAPP_ACCESS_TOKEN') && Deno.env.get('EVOLUTION_API_URL'));
 
-    if (!accessToken || !Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')) {
-      throw new Error('WhatsApp credentials not configured')
+    if (useEvolution) {
+      // Evolution API configuration
+      const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+      const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+      const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+
+      if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstance) {
+        throw new Error('Evolution API credentials not configured. Please set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME');
+      }
+
+      console.log('Using Evolution API for WhatsApp message');
+      return await sendViaEvolution(evolutionApiUrl, evolutionApiKey, evolutionInstance, {
+        recipient_phone,
+        message_body,
+        message_type,
+        template_name,
+        language_code,
+        template_components,
+        isTest,
+        templateId,
+        campaignId,
+        churchId,
+        user
+      }, supabaseClient, corsHeaders);
+    } else {
+      // WhatsApp Business API configuration
+      const whatsappApiUrl = `https://graph.facebook.com/v18.0/${Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')}/messages`
+      const accessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN')
+
+      if (!accessToken || !Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')) {
+        throw new Error('WhatsApp Business API credentials not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID');
+      }
+
+      console.log('Using WhatsApp Business API for message');
     }
 
     let messagePayload: any
