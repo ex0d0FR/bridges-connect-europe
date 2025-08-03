@@ -64,9 +64,7 @@ async function sendViaEvolution(
 
   const evolutionPayload = {
     number: formattedPhone,
-    textMessage: {
-      text: message_body
-    }
+    text: message_body
   };
 
   console.log('Sending Evolution API message:', JSON.stringify(evolutionPayload, null, 2));
