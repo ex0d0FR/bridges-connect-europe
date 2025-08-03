@@ -28,23 +28,17 @@ export default function Settings() {
     defaultValues: {
       sender_name: '',
       sender_email: '',
-      sendgrid_api_key: '',
     },
   });
 
   const messagingForm = useForm({
     defaultValues: {
-      twilio_account_sid: '',
-      twilio_auth_token: '',
       whatsapp_phone_number: '',
     },
   });
 
   const integrationsForm = useForm({
-    defaultValues: {
-      google_maps_api_key: '',
-      apify_api_token: '',
-    },
+    defaultValues: {},
   });
 
   // Load settings when data is available
@@ -59,19 +53,13 @@ export default function Settings() {
       emailForm.reset({
         sender_name: settings.sender_name || '',
         sender_email: settings.sender_email || '',
-        sendgrid_api_key: settings.sendgrid_api_key || '',
       });
       
       messagingForm.reset({
-        twilio_account_sid: settings.twilio_account_sid || '',
-        twilio_auth_token: settings.twilio_auth_token || '',
         whatsapp_phone_number: settings.whatsapp_phone_number || '',
       });
       
-      integrationsForm.reset({
-        google_maps_api_key: settings.google_maps_api_key || '',
-        apify_api_token: settings.apify_api_token || '',
-      });
+      integrationsForm.reset({});
     }
   }, [settings, generalForm, emailForm, messagingForm, integrationsForm]);
 
@@ -225,19 +213,15 @@ export default function Settings() {
 
                   <Separator />
                   
-                  <FormField
-                    control={emailForm.control}
-                    name="sendgrid_api_key"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>SendGrid API Key</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter your SendGrid API key" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>SendGrid API Key</Label>
+                      <p className="text-sm text-muted-foreground">Configure your SendGrid API key as a Supabase secret for secure email sending.</p>
+                      <Button variant="outline" type="button">
+                        Configure SendGrid Secret
+                      </Button>
+                    </div>
+                  </div>
 
                   <Button type="submit" disabled={isSaving}>
                     {isSaving ? 'Saving...' : 'Save Email Settings'}
@@ -259,33 +243,22 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <Form {...messagingForm}>
                 <form onSubmit={messagingForm.handleSubmit(onMessagingSubmit)} className="space-y-4">
-                  <FormField
-                    control={messagingForm.control}
-                    name="twilio_account_sid"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Twilio Account SID</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Enter your Twilio Account SID" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Twilio Configuration</Label>
+                      <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure SMS sending.</p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" type="button">
+                          Configure Twilio Account SID
+                        </Button>
+                        <Button variant="outline" type="button">
+                          Configure Twilio Auth Token
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                   
-                  <FormField
-                    control={messagingForm.control}
-                    name="twilio_auth_token"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Twilio Auth Token</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="Enter your Twilio Auth Token" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  <Separator />
 
                   <FormField
                     control={messagingForm.control}
@@ -315,45 +288,29 @@ export default function Settings() {
             <CardHeader>
               <CardTitle>External Integrations</CardTitle>
               <CardDescription>
-                Configure connections to external services
+                Configure connections to external services using secure Supabase secrets
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Form {...integrationsForm}>
-                <form onSubmit={integrationsForm.handleSubmit(onIntegrationsSubmit)} className="space-y-4">
-                  <FormField
-                    control={integrationsForm.control}
-                    name="google_maps_api_key"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Google Maps API Key</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="For church discovery via Google Maps" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={integrationsForm.control}
-                    name="apify_api_token"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Apify API Token</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="For web scraping church directories" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? 'Saving...' : 'Save Integration Settings'}
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Google Maps API Key</Label>
+                  <p className="text-sm text-muted-foreground">Configure your Google Maps API key as a Supabase secret for church discovery features.</p>
+                  <Button variant="outline" type="button">
+                    Configure Google Maps Secret
                   </Button>
-                </form>
-              </Form>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-2">
+                  <Label>Apify API Token</Label>
+                  <p className="text-sm text-muted-foreground">Configure your Apify API token as a Supabase secret for web scraping church directories.</p>
+                  <Button variant="outline" type="button">
+                    Configure Apify Secret
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

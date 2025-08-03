@@ -10,12 +10,7 @@ export interface Settings {
   conference_date?: string;
   sender_name?: string;
   sender_email?: string;
-  sendgrid_api_key?: string;
-  twilio_account_sid?: string;
-  twilio_auth_token?: string;
   whatsapp_phone_number?: string;
-  google_maps_api_key?: string;
-  apify_api_token?: string;
 }
 
 export function useSettings() {
