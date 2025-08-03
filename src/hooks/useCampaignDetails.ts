@@ -216,7 +216,10 @@ export const useRetryFailedMessages = () => {
           }
 
           const { data, error: retryError } = await supabase.functions.invoke(functionName, {
-            body: requestBody
+            body: requestBody,
+            headers: {
+              'Content-Type': 'application/json'
+            }
           })
 
           if (retryError) {
