@@ -215,12 +215,15 @@ serve(async (req) => {
     const hasWhatsAppConfig = whatsappAccessToken && whatsappPhoneNumberId;
 
     console.log('Configuration check:', {
-      hasEvolutionConfig,
-      hasWhatsAppConfig,
+      hasEvolutionConfig: hasEvolutionConfig ? evolutionInstance : 'none',
+      hasWhatsAppConfig: hasWhatsAppConfig ? whatsappPhoneNumberId : 'none',
       requestedProvider: provider,
-      evolutionApiUrl: evolutionApiUrl ? `${evolutionApiUrl.substring(0, 20)}...` : 'not set',
+      evolutionApiUrl: evolutionApiUrl ? evolutionApiUrl.substring(0, 20) + '...' : 'none',
       recipient: recipient_phone,
-      messageType: message_type || 'text'
+      messageType: message_type || 'text',
+      isTest: isTest || false,
+      campaignId: campaignId || 'none',
+      churchId: churchId || 'none'
     });
 
     // Determine which provider to use

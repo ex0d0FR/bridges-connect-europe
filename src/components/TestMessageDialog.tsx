@@ -63,8 +63,10 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
           throw new Error("Phone number is required for WhatsApp templates")
         }
         functionName = 'send-whatsapp'
+        // Ensure phone number has proper format
+        const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+${formData.phone}`
         body = {
-          recipient_phone: formData.phone,
+          recipient_phone: formattedPhone,
           message_body: template.content,
           message_type: 'text',
           provider: 'evolution', // Prefer Evolution API
@@ -74,9 +76,19 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         throw new Error("Invalid template type")
       }
 
-      const { error } = await supabase.functions.invoke(functionName, { body })
+      const { data, error } = await supabase.functions.invoke(functionName, { 
+        body,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
 
-      if (error) throw error
+      if (error) {
+        console.error('Test message error:', error)
+        throw error
+      }
+
+      console.log('Test message response:', data)
 
       toast({
         title: "Test message sent!",

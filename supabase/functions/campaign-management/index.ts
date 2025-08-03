@@ -144,8 +144,11 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       if (!campaignChurches || campaignChurches.length === 0) {
+        console.log(`Campaign ${campaignId} has no churches assigned`)
         throw new Error('No churches assigned to this campaign. Please add churches before launching.');
       }
+
+      console.log(`Found ${campaignChurches.length} churches for campaign ${campaignId}`)
 
       // For now, we'll use a default template since campaigns don't have template_id yet
       // This should be improved to link campaigns to specific templates
@@ -268,6 +271,12 @@ const handler = async (req: Request): Promise<Response> => {
               successCount++;
             }
           } else if (template.type === 'whatsapp') {
+            console.log(`Sending WhatsApp message to church ${church.id}, phone: ${church.phone}`)
+            
+            if (!church.phone) {
+              throw new Error(`Church ${church.name} does not have a phone number`)
+            }
+
             const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
               headers: {
                 'Authorization': authHeader,
@@ -276,6 +285,7 @@ const handler = async (req: Request): Promise<Response> => {
                 recipient_phone: church.phone,
                 message_body: template.content,
                 message_type: 'text',
+                provider: 'evolution',
                 templateId: template.id,
                 campaignId: campaign.id,
                 churchId: church.id
