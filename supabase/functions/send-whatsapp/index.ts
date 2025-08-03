@@ -42,6 +42,7 @@ async function sendViaEvolution(
   apiUrl: string,
   apiKey: string,
   instanceName: string,
+  instanceToken: string | undefined,
   messageData: any,
   supabaseClient: any,
   corsHeaders: any
@@ -81,6 +82,7 @@ async function sendViaEvolution(
         headers: {
           'Content-Type': 'application/json',
           'apikey': apiKey,
+          ...(instanceToken && { 'Authorization': `Bearer ${instanceToken}` }),
         },
         body: JSON.stringify(evolutionPayload),
       }),
@@ -207,6 +209,7 @@ serve(async (req) => {
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
     const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    const evolutionInstanceToken = Deno.env.get('EVOLUTION_INSTANCE_TOKEN');
     const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
     const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
 
@@ -231,7 +234,7 @@ serve(async (req) => {
       }
 
       console.log('Using Evolution API for WhatsApp message');
-      return await sendViaEvolution(evolutionApiUrl, evolutionApiKey, evolutionInstance, {
+      return await sendViaEvolution(evolutionApiUrl, evolutionApiKey, evolutionInstance, evolutionInstanceToken, {
         recipient_phone,
         message_body,
         message_type,
