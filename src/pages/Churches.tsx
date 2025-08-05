@@ -34,6 +34,7 @@ import { useChurches, useDeleteChurch } from "@/hooks/useChurches"
 import { useChurchImportExport } from "@/hooks/useChurchImportExport"
 import AddChurchDialog from "@/components/AddChurchDialog"
 import EditChurchDialog from "@/components/EditChurchDialog"
+import { ChurchEmailScrapingDialog } from "@/components/ChurchEmailScrapingDialog"
 import { formatDistanceToNow } from "date-fns"
 
 export default function Churches() {
@@ -115,6 +116,7 @@ export default function Churches() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
+          <ChurchEmailScrapingDialog churches={churches || []} />
           <AddChurchDialog />
         </div>
       </div>
