@@ -45,19 +45,33 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Limit the number of churches to process to avoid query limits
+    const limitedChurchIds = churchIds.slice(0, 50); // Process max 50 churches at a time
+    console.log(`Processing ${limitedChurchIds.length} out of ${churchIds.length} requested churches`);
+
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get church data
+    // Get church data with better error handling
+    console.log('Fetching church data from database...');
     const { data: churches, error: churchError } = await supabase
       .from('churches')
       .select('id, name, website, email')
-      .in('id', churchIds);
+      .in('id', limitedChurchIds);
 
     if (churchError) {
+      console.error('Database error:', churchError);
       throw new Error(`Failed to fetch churches: ${churchError.message}`);
+    }
+
+    if (!churches || churches.length === 0) {
+      console.log('No churches found with the provided IDs');
+      return new Response(
+        JSON.stringify({ error: 'No churches found with the provided IDs' }),
+        { status: 404, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+      );
     }
 
     console.log(`Processing ${churches.length} churches for email scraping`);
