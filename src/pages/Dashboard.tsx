@@ -60,7 +60,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{totalChurches}</div>
             <p className="text-xs text-muted-foreground">
-              {verifiedChurches} verified
+              {verifiedChurches} {t('dashboard.verified')}
             </p>
           </CardContent>
         </Card>

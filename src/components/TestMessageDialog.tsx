@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { Mail, MessageSquare, MessageCircle } from "lucide-react"
+import { useLanguage } from "@/contexts/LanguageContext"
 
 interface TestMessageDialogProps {
   open: boolean
@@ -20,6 +21,7 @@ interface TestMessageDialogProps {
 }
 
 export function TestMessageDialog({ open, onOpenChange, template }: TestMessageDialogProps) {
+  const { t } = useLanguage();
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
     email: "",

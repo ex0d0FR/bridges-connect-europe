@@ -107,7 +107,7 @@ export default function Templates() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('templates.title')}</h1>
           <p className="text-muted-foreground">
-            Create and manage email, SMS, and WhatsApp templates
+            {t('templates.manageExistingTemplates')}
           </p>
         </div>
         <Button onClick={() => setShowCreateDialog(true)}>

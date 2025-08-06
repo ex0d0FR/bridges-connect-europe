@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, Mail, CheckCircle, XCircle, Clock, Download } from 'lucide-react';
 import { useChurchEmailScraping, type ScrapingResult, type EmailUpdate } from '@/hooks/useChurchEmailScraping';
 import { Church } from '@/hooks/useChurches';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface ChurchEmailScrapingDialogProps {
   churches: Church[];
@@ -20,6 +21,7 @@ export const ChurchEmailScrapingDialog: React.FC<ChurchEmailScrapingDialogProps>
   churches,
   trigger
 }) => {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [selectedUpdates, setSelectedUpdates] = useState<Map<string, EmailUpdate>>(new Map());
   
