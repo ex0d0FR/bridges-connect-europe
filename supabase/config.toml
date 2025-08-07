@@ -26,3 +26,9 @@ verify_jwt = true
 
 [functions.church-email-scraper]
 verify_jwt = true
+
+[functions.security-logger]
+verify_jwt = true
+
+[functions.user-notifications]
+verify_jwt = true
