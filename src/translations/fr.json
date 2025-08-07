@@ -36,7 +36,11 @@
     "viewAnalytics": "Voir Analytiques",
     "recentActivity": "Activité Récente",
     "noRecentActivity": "Aucune activité récente à afficher.",
-    "getStarted": "Commencez en ajoutant votre première église ou en créant une campagne."
+    "getStarted": "Commencez en ajoutant votre première église ou en créant une campagne.",
+    "verified": "vérifiées",
+    "totalCampaigns": "campagnes totales",
+    "acrossAllCampaigns": "sur toutes les campagnes",
+    "churchVerificationRate": "taux de vérification des églises"
   },
   "churches": {
     "title": "Églises",
@@ -333,11 +337,5 @@
     "startByCreating": "Commencez par créer votre premier modèle pour les campagnes d'approche via Email, SMS ou WhatsApp.",
     "templateDeleted": "Modèle supprimé avec succès",
     "deleteFailed": "Échec de la suppression du modèle"
-  },
-  "dashboard": {
-    "verified": "vérifiées",
-    "totalCampaigns": "campagnes totales",
-    "acrossAllCampaigns": "sur toutes les campagnes",
-    "churchVerificationRate": "taux de vérification des églises"
   }
 }

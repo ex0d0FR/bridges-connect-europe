@@ -36,7 +36,11 @@
     "viewAnalytics": "Ver Analíticas",
     "recentActivity": "Actividad Reciente",
     "noRecentActivity": "No hay actividad reciente para mostrar.",
-    "getStarted": "Comienza agregando tu primera iglesia o creando una campaña."
+    "getStarted": "Comienza agregando tu primera iglesia o creando una campaña.",
+    "verified": "verificadas",
+    "totalCampaigns": "campañas totales",
+    "acrossAllCampaigns": "en todas las campañas",
+    "churchVerificationRate": "tasa de verificación de iglesias"
   },
   "churches": {
     "title": "Iglesias",
@@ -333,11 +337,5 @@
     "startByCreating": "Comience creando su primera plantilla para campañas de alcance vía Email, SMS o WhatsApp.",
     "templateDeleted": "Plantilla eliminada exitosamente",
     "deleteFailed": "Error al eliminar plantilla"
-  },
-  "dashboard": {
-    "verified": "verificadas",
-    "totalCampaigns": "campañas totales",
-    "acrossAllCampaigns": "en todas las campañas",
-    "churchVerificationRate": "tasa de verificación de iglesias"
   }
 }
