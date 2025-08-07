@@ -73,7 +73,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{activeCampaigns}</div>
             <p className="text-xs text-muted-foreground">
-              {stats?.total || 0} total campaigns
+              {stats?.total || 0} {t('dashboard.totalCampaigns')}
             </p>
           </CardContent>
         </Card>
@@ -86,7 +86,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{totalContacts}</div>
             <p className="text-xs text-muted-foreground">
-              across all campaigns
+              {t('dashboard.acrossAllCampaigns')}
             </p>
           </CardContent>
         </Card>
@@ -99,7 +99,7 @@ export default function Dashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{conversionRate}%</div>
             <p className="text-xs text-muted-foreground">
-              church verification rate
+              {t('dashboard.churchVerificationRate')}
             </p>
           </CardContent>
         </Card>
@@ -133,7 +133,7 @@ export default function Dashboard() {
                       size="sm"
                       onClick={() => navigate(`/campaigns/${campaign.id}`)}
                     >
-                      View
+                      {t('common.view')}
                     </Button>
                   </div>
                 ))}
