@@ -40,13 +40,14 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
 
       if (template.type === 'email') {
         if (!formData.email) {
-          throw new Error("Email address is required for email templates")
+          throw new Error(t('validation.emailRequired'))
         }
         functionName = 'send-email'
         body = {
           to: formData.email,
           subject: template.subject || `Test: ${template.name}`,
           content: template.content,
+          churchId: '00000000-0000-0000-0000-000000000000',
           isTest: true
         }
       } else if (template.type === 'sms') {
@@ -93,8 +94,8 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
       console.log('Test message response:', data)
 
       toast({
-        title: "Test message sent!",
-        description: `${template.type.toUpperCase()} test message sent successfully`,
+        title: t('testMessage.testMessageSent'),
+        description: t('testMessage.testMessageSentSuccess'),
       })
 
       onOpenChange(false)

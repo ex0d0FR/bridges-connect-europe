@@ -41,11 +41,15 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
-    // Get user ID from auth
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get user ID from auth using JWT from header
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     console.log('Analytics: User data:', user ? { id: user.id, email: user.email } : 'null');
     console.log('Analytics: Auth error:', authError);
     

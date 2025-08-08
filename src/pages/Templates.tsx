@@ -123,12 +123,12 @@ export default function Templates() {
             <Mail className="h-8 w-8 mx-auto text-primary" />
             <CardTitle className="text-lg">{t('templates.emailTemplates')}</CardTitle>
             <CardDescription>
-              Create personalized email invitations
+              {t('templates.emailTemplateDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button variant="outline" className="w-full" onClick={() => setShowCreateDialog(true)}>
-              Create Email Template
+              {t('templates.createEmailTemplate')}
             </Button>
           </CardContent>
         </Card>
@@ -138,12 +138,12 @@ export default function Templates() {
             <MessageSquare className="h-8 w-8 mx-auto text-primary" />
             <CardTitle className="text-lg">{t('templates.smsTemplates')}</CardTitle>
             <CardDescription>
-              Short message templates for mobile outreach
+              {t('templates.smsTemplateDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button variant="outline" className="w-full" onClick={() => setShowCreateDialog(true)}>
-              Create SMS Template
+              {t('templates.createSmsTemplate')}
             </Button>
           </CardContent>
         </Card>
@@ -151,14 +151,14 @@ export default function Templates() {
         <Card className="cursor-pointer hover:shadow-md transition-shadow">
           <CardHeader className="text-center">
             <MessageCircle className="h-8 w-8 mx-auto text-primary" />
-            <CardTitle className="text-lg">WhatsApp Templates</CardTitle>
+            <CardTitle className="text-lg">{t('templates.whatsappTemplates')}</CardTitle>
             <CardDescription>
-              Rich media messages for WhatsApp Business
+              {t('templates.whatsappTemplateDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button variant="outline" className="w-full" onClick={() => setShowCreateDialog(true)}>
-              Create WhatsApp Template
+              {t('templates.createWhatsAppTemplate')}
             </Button>
           </CardContent>
         </Card>
@@ -166,14 +166,14 @@ export default function Templates() {
         <Card className="cursor-pointer hover:shadow-md transition-shadow">
           <CardHeader className="text-center">
             <Globe className="h-8 w-8 mx-auto text-primary" />
-            <CardTitle className="text-lg">Multi-language</CardTitle>
+            <CardTitle className="text-lg">{t('templates.multiLanguage')}</CardTitle>
             <CardDescription>
-              Templates in English, French, and Spanish
+              {t('templates.multiLanguageDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <Button variant="outline" className="w-full">
-              Manage Languages
+              {t('templates.manageLanguages')}
             </Button>
           </CardContent>
         </Card>
@@ -182,21 +182,21 @@ export default function Templates() {
       {/* Existing Templates */}
       <Card>
         <CardHeader>
-          <CardTitle>Your Templates</CardTitle>
+          <CardTitle>{t('templates.yourTemplates')}</CardTitle>
           <CardDescription>
-            Manage your existing message templates
+            {t('templates.manageExistingTemplates')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Loading templates...
+              {t('templates.loadingTemplates')}
             </div>
           ) : templates.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="mb-4">{t('templates.noTemplates')}</div>
               <p className="text-sm mb-4">
-                Start by creating your first template for outreach campaigns via Email, SMS, or WhatsApp.
+                {t('templates.startByCreating')}
               </p>
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -233,11 +233,11 @@ export default function Templates() {
                       onClick={() => handleTestTemplate(template)}
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      Test
+                      {t('common.test')}
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handleEditTemplate(template)}>
                       <Edit className="h-4 w-4 mr-2" />
-                      Edit
+                      {t('common.edit')}
                     </Button>
                     <Button 
                       variant="destructive" 
@@ -245,7 +245,7 @@ export default function Templates() {
                       onClick={() => handleDeleteTemplate(template.id)}
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
+                      {t('common.delete')}
                     </Button>
                   </div>
                 </div>
