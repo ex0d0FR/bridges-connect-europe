@@ -37,12 +37,11 @@ function validateEvolutionConfig(apiUrl: string, apiKey: string, instanceName: s
   return errors;
 }
 
-// Evolution API function
-async function sendViaEvolution(
-  apiUrl: string,
-  apiKey: string,
-  instanceName: string,
-  instanceToken: string | undefined,
+// Twilio WhatsApp function
+async function sendViaTwilio(
+  accountSid: string,
+  authToken: string,
+  fromPhone: string,
   messageData: any,
   supabaseClient: any,
   corsHeaders: any
@@ -50,75 +49,78 @@ async function sendViaEvolution(
   const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
 
   // Validate configuration
-  const configErrors = validateEvolutionConfig(apiUrl, apiKey, instanceName);
-  if (configErrors.length > 0) {
-    throw new Error(`Evolution API configuration errors: ${configErrors.join(', ')}`);
+  if (!accountSid || !authToken || !fromPhone) {
+    throw new Error('Twilio configuration incomplete. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER');
   }
 
-  // Evolution API endpoint for sending messages
-  const evolutionEndpoint = `${apiUrl}/message/sendText/${instanceName}`;
-  console.log('Evolution API endpoint:', evolutionEndpoint);
+  // Ensure the from number is in WhatsApp format
+  const twilioFromNumber = fromPhone.startsWith('whatsapp:') ? fromPhone : `whatsapp:${fromPhone}`;
+  const twilioToNumber = recipient_phone.startsWith('whatsapp:') ? recipient_phone : `whatsapp:${recipient_phone}`;
 
-  // Format phone number (Evolution API expects numbers without + prefix)
-  const formattedPhone = recipient_phone.replace(/^\+/, '');
+  // Twilio API endpoint
+  const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  console.log('Twilio WhatsApp endpoint:', twilioEndpoint);
 
-  const evolutionPayload = {
-    number: formattedPhone,
-    text: message_body
-  };
+  const twilioPayload = new URLSearchParams({
+    From: twilioFromNumber,
+    To: twilioToNumber,
+    Body: message_body
+  });
 
-  console.log('Sending Evolution API message:', JSON.stringify(evolutionPayload, null, 2));
+  console.log('Sending Twilio WhatsApp message:', {
+    from: twilioFromNumber,
+    to: twilioToNumber,
+    body: message_body
+  });
 
-  let evolutionResponse;
-  let evolutionResult;
+  let twilioResponse;
+  let twilioResult;
 
   try {
-    // Send to Evolution API with timeout
-    evolutionResponse = await Promise.race([
-      fetch(evolutionEndpoint, {
+    // Send to Twilio API with timeout
+    twilioResponse = await Promise.race([
+      fetch(twilioEndpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'apikey': apiKey,
-          ...(instanceToken && { 'Authorization': `Bearer ${instanceToken}` }),
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${btoa(`${accountSid}:${authToken}`)}`,
         },
-        body: JSON.stringify(evolutionPayload),
+        body: twilioPayload,
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Evolution API request timeout (10s)')), 10000)
+        setTimeout(() => reject(new Error('Twilio API request timeout (10s)')), 10000)
       )
     ]) as Response;
 
-    if (!evolutionResponse.ok) {
-      const errorText = await evolutionResponse.text();
-      console.error(`Evolution API HTTP error: ${evolutionResponse.status} - ${errorText}`);
-      throw new Error(`Evolution API HTTP error: ${evolutionResponse.status}. Check if your Evolution API server is running and accessible at ${apiUrl}.`);
-    }
-
-    const responseText = await evolutionResponse.text();
-    console.log(`Evolution API raw response: ${responseText.substring(0, 200)}`);
+    const responseText = await twilioResponse.text();
+    console.log(`Twilio API raw response: ${responseText.substring(0, 200)}`);
     
     try {
-      evolutionResult = JSON.parse(responseText);
+      twilioResult = JSON.parse(responseText);
     } catch (parseError) {
-      console.error('Evolution API returned non-JSON response:', responseText.substring(0, 500));
-      throw new Error(`Evolution API returned invalid response. This usually means the API server is not running properly or the URL is incorrect. Check your EVOLUTION_API_URL setting. Received: ${responseText.substring(0, 100)}`);
+      console.error('Twilio API returned non-JSON response:', responseText.substring(0, 500));
+      throw new Error(`Twilio API returned invalid response: ${responseText.substring(0, 100)}`);
+    }
+
+    if (!twilioResponse.ok) {
+      console.error(`Twilio API HTTP error: ${twilioResponse.status} - ${responseText}`);
+      throw new Error(`Twilio API error: ${twilioResult.message || 'Unknown error'} (Code: ${twilioResult.code || 'unknown'})`);
     }
   } catch (error) {
-    console.error('Evolution API connection error:', error);
+    console.error('Twilio API connection error:', error);
     
     if (error.message.includes('Connection refused') || error.message.includes('ECONNREFUSED')) {
-      throw new Error(`Cannot connect to Evolution API at ${apiUrl}. Please check that the API is running and accessible.`);
+      throw new Error(`Cannot connect to Twilio API. Please check your internet connection.`);
     } else if (error.message.includes('timeout')) {
-      throw new Error(`Evolution API request timeout. The API at ${apiUrl} is not responding.`);
+      throw new Error(`Twilio API request timeout. Please try again.`);
     } else if (error.message.includes('invalid response') || error.message.includes('HTTP error')) {
       throw error; // Re-throw our custom errors
     } else {
-      throw new Error(`Evolution API connection failed: ${error.message}`);
+      throw new Error(`Twilio API connection failed: ${error.message}`);
     }
   }
 
-  console.log('Evolution API message sent successfully:', evolutionResult);
+  console.log('Twilio WhatsApp message sent successfully:', twilioResult);
 
   // Log to database if not a test message
   if (!isTest && churchId && campaignId) {
@@ -132,13 +134,13 @@ async function sendViaEvolution(
         content: message_body,
         recipient_phone: recipient_phone,
         status: 'sent',
-        external_id: evolutionResult.key?.id || evolutionResult.messageId,
+        external_id: twilioResult.sid,
         sent_at: new Date().toISOString(),
         created_by: user.id
       });
 
     if (dbError) {
-      console.error('Error logging Evolution API message to database:', dbError);
+      console.error('Error logging Twilio WhatsApp message to database:', dbError);
     }
   } else {
     console.log('Test message - skipping database logging');
@@ -147,10 +149,10 @@ async function sendViaEvolution(
   return new Response(
     JSON.stringify({
       success: true,
-      message_id: evolutionResult.key?.id || evolutionResult.messageId,
+      message_id: twilioResult.sid,
       status: 'sent',
-      evolution_response: evolutionResult,
-      provider: 'evolution'
+      twilio_response: twilioResult,
+      provider: 'twilio'
     }),
     {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -207,22 +209,15 @@ serve(async (req) => {
     const requestBody = await req.json();
     const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId, provider = 'whatsapp' }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string, provider?: 'whatsapp' | 'evolution' } = requestBody;
 
-    // Check configuration and determine provider
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstance = Deno.env.get('EVOLUTION_INSTANCE_NAME');
-    const evolutionInstanceToken = Deno.env.get('EVOLUTION_INSTANCE_TOKEN');
-    const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
-    const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
+    // Check Twilio configuration
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
 
-    const hasEvolutionConfig = evolutionApiUrl && evolutionApiKey && evolutionInstance;
-    const hasWhatsAppConfig = whatsappAccessToken && whatsappPhoneNumberId;
+    const hasTwilioConfig = twilioAccountSid && twilioAuthToken && twilioPhoneNumber;
 
     console.log('Configuration check:', {
-      hasEvolutionConfig: hasEvolutionConfig ? evolutionInstance : 'none',
-      hasWhatsAppConfig: hasWhatsAppConfig ? whatsappPhoneNumberId : 'none',
-      requestedProvider: provider,
-      evolutionApiUrl: evolutionApiUrl ? evolutionApiUrl.substring(0, 20) + '...' : 'none',
+      hasTwilioConfig: hasTwilioConfig ? 'configured' : 'missing',
       recipient: recipient_phone,
       messageType: message_type || 'text',
       isTest: isTest || false,
@@ -230,148 +225,24 @@ serve(async (req) => {
       churchId: churchId || 'none'
     });
 
-    // Determine which provider to use
-    const useEvolution = provider === 'evolution' || 
-      (hasEvolutionConfig && !hasWhatsAppConfig) ||
-      (hasEvolutionConfig && provider !== 'whatsapp');
-
-    if (useEvolution) {
-      if (!hasEvolutionConfig) {
-        throw new Error('Evolution API credentials not configured. Please set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME in your secrets.');
-      }
-
-      console.log('Using Evolution API for WhatsApp message');
-      return await sendViaEvolution(evolutionApiUrl, evolutionApiKey, evolutionInstance, evolutionInstanceToken, {
-        recipient_phone,
-        message_body,
-        message_type,
-        template_name,
-        language_code,
-        template_components,
-        isTest,
-        templateId,
-        campaignId,
-        churchId,
-        user
-      }, supabaseClient, corsHeaders);
-    } else {
-      if (!hasWhatsAppConfig) {
-        throw new Error('WhatsApp Business API credentials not configured. Please set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID in your secrets.');
-      }
-
-      console.log('Using WhatsApp Business API for message');
-      
-      // WhatsApp Business API implementation
-      const whatsappApiUrl = `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}/messages`;
-      const accessToken = whatsappAccessToken;
-
-      let messagePayload: any
-
-      if (message_type === 'template' && template_name) {
-        // Send template message
-        messagePayload = {
-          messaging_product: 'whatsapp',
-          to: recipient_phone,
-          type: 'template',
-          template: {
-            name: template_name,
-            language: {
-              code: language_code
-            }
-          }
-        }
-
-        if (template_components && template_components.length > 0) {
-          messagePayload.template.components = template_components
-        }
-      } else {
-        // Send text message
-        messagePayload = {
-          messaging_product: 'whatsapp',
-          to: recipient_phone,
-          type: 'text',
-          text: {
-            body: message_body
-          }
-        }
-      }
-
-      console.log('Sending WhatsApp message:', JSON.stringify(messagePayload, null, 2))
-
-      // Send to WhatsApp Business API
-      const whatsappResponse = await fetch(whatsappApiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messagePayload),
-      })
-
-      const whatsappResult = await whatsappResponse.json()
-
-      if (!whatsappResponse.ok) {
-        console.error('WhatsApp API error details:', {
-          status: whatsappResponse.status,
-          statusText: whatsappResponse.statusText,
-          response: whatsappResult,
-          phoneNumber: recipient_phone,
-          phoneNumberId: whatsappPhoneNumberId
-        })
-        
-        // Check for specific token expiration error
-        if (whatsappResult.error?.code === 190) {
-          throw new Error(`WhatsApp access token has expired. Please update your token in the settings. Error: ${whatsappResult.error.message}`)
-        }
-        
-        // Check for invalid phone number format
-        if (whatsappResult.error?.code === 131000) {
-          throw new Error(`Invalid phone number format: ${recipient_phone}. Please use international format (+country_code_phone_number)`)
-        }
-        
-        throw new Error(`WhatsApp API error: ${whatsappResult.error?.message || 'Unknown error'} (Code: ${whatsappResult.error?.code || 'unknown'})`)
-      }
-
-      console.log('WhatsApp message sent successfully:', whatsappResult)
-
-      // Log to database if not a test message
-      if (!isTest && churchId && campaignId) {
-        const { error: dbError } = await supabaseClient
-          .from('messages')
-          .insert({
-            type: 'whatsapp',
-            church_id: churchId,
-            campaign_id: campaignId,
-            template_id: templateId,
-            content: message_body,
-            recipient_phone: recipient_phone,
-            status: 'sent',
-            external_id: whatsappResult.messages?.[0]?.id,
-            sent_at: new Date().toISOString(),
-            created_by: user.id
-          });
-
-        if (dbError) {
-          console.error('Error logging WhatsApp message to database:', dbError);
-        }
-      } else {
-        console.log('Test message - skipping database logging');
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message_id: whatsappResult.messages?.[0]?.id,
-          status: 'sent',
-          whatsapp_response: whatsappResult,
-          provider: 'whatsapp'
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-        },
-      )
+    if (!hasTwilioConfig) {
+      throw new Error('Twilio credentials not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER in your secrets.');
     }
+
+    console.log('Using Twilio for WhatsApp message');
+    return await sendViaTwilio(twilioAccountSid, twilioAuthToken, twilioPhoneNumber, {
+      recipient_phone,
+      message_body,
+      message_type,
+      template_name,
+      language_code,
+      template_components,
+      isTest,
+      templateId,
+      campaignId,
+      churchId,
+      user
+    }, supabaseClient, corsHeaders);
 
   } catch (error) {
     console.error('Error sending WhatsApp message:', error)
