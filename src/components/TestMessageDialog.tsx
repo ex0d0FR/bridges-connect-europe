@@ -29,6 +29,41 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
   })
   const { toast } = useToast()
 
+  const formatEmailPreview = (content: string): string => {
+    // Check if content is already HTML
+    const isHTML = /<[a-z][\s\S]*>/i.test(content);
+    
+    if (isHTML) {
+      return content;
+    }
+    
+    // Convert plain text to HTML for preview
+    let htmlContent = content
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      .replace(/undefined/g, '');
+    
+    return `
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+              line-height: 1.6;
+              color: #333333;
+              padding: 16px;
+              margin: 0;
+            }
+            p { margin: 0 0 16px 0; }
+          </style>
+        </head>
+        <body>
+          <p>${htmlContent}</p>
+        </body>
+      </html>
+    `;
+  };
+
   const handleSendTest = async () => {
     setIsLoading(true)
     try {
@@ -187,7 +222,7 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
                   title="email-preview"
                   sandbox="allow-same-origin"
                   className="w-full h-40"
-                  srcDoc={template.content}
+                  srcDoc={formatEmailPreview(template.content)}
                 />
               </div>
             ) : (
