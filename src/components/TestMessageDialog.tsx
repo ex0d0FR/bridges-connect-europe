@@ -52,11 +52,13 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         }
       } else if (template.type === 'sms') {
         if (!formData.phone) {
-          throw new Error("Phone number is required for SMS templates")
+          throw new Error(t('validation.phoneRequired'))
         }
         functionName = 'send-sms'
+        const cleanedPhone = formData.phone.replace(/[^\d+]/g, '').trim()
+        const formattedPhone = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`
         body = {
-          to: formData.phone,
+          to: formattedPhone,
           content: template.content,
           churchId: '00000000-0000-0000-0000-000000000000', // Test church ID
           isTest: true
@@ -67,7 +69,8 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         }
         functionName = 'send-whatsapp'
         // Ensure phone number has proper format
-        const formattedPhone = formData.phone.startsWith('+') ? formData.phone : `+${formData.phone}`
+        const cleanedPhone = formData.phone.replace(/[^\d+]/g, '').trim()
+        const formattedPhone = cleanedPhone.startsWith('+') ? cleanedPhone : `+${cleanedPhone}`
         body = {
           recipient_phone: formattedPhone,
           message_body: template.content,
@@ -103,8 +106,8 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
     } catch (error: any) {
       console.error('Error sending test message:', error)
       toast({
-        title: "Error",
-        description: error.message || "Failed to send test message",
+        title: t('common.error'),
+        description: error?.message || t('testMessage.testMessageFailed'),
         variant: "destructive",
       })
     } finally {
@@ -131,23 +134,23 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getIcon()}
-            Test {template.type.toUpperCase()} Template
+            {template.type === 'email' ? t('testMessage.testEmailTemplate') : template.type === 'sms' ? t('testMessage.testSmsTemplate') : t('testMessage.testWhatsappTemplate')}
           </DialogTitle>
           <DialogDescription>
-            Send a test message using the "{template.name}" template
+            {t('testMessage.sendTestMessage')} "{template.name}"
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
           {template.type === 'email' && (
             <div className="space-y-2">
-              <Label htmlFor="email">Test Email Address</Label>
+              <Label htmlFor="email">{t('testMessage.testEmailAddress')}</Label>
               <Input
                 id="email"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="your@email.com"
+                placeholder={t('placeholders.yourEmail')}
                 required
               />
             </div>
@@ -155,40 +158,57 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
           
           {(template.type === 'sms' || template.type === 'whatsapp') && (
             <div className="space-y-2">
-              <Label htmlFor="phone">Test Phone Number</Label>
+              <Label htmlFor="phone">{t('testMessage.testPhoneNumber')}</Label>
               <Input
                 id="phone"
                 type="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+1234567890"
+                placeholder={t('placeholders.phoneNumber')}
                 required
               />
             </div>
           )}
 
           <div className="p-3 bg-muted rounded-md">
-            <p className="text-sm font-medium mb-2">Message Preview:</p>
+            <p className="text-sm font-medium mb-2">{t('testMessage.messagePreview')}:</p>
             {template.subject && (
               <p className="text-sm text-muted-foreground mb-1">
-                <strong>Subject:</strong> {template.subject}
+                <strong>{t('forms.subject')}:</strong> {template.subject}
               </p>
             )}
-            <p className="text-sm text-muted-foreground">
-              <strong>Content:</strong> {template.content}
-            </p>
+            {template.type === 'email' ? (
+              <div className="rounded border bg-background">
+                <iframe
+                  title="email-preview"
+                  sandbox="allow-same-origin"
+                  className="w-full h-40"
+                  srcDoc={template.content}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                <strong>{t('forms.content')}:</strong> {template.content}
+              </p>
+            )}
           </div>
         </div>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button 
             onClick={handleSendTest} 
             disabled={isLoading || (template.type === 'email' ? !formData.email : !formData.phone)}
           >
-            {isLoading ? "Sending..." : `Send Test ${template.type.toUpperCase()}`}
+            {isLoading 
+              ? t('common.loading') 
+              : template.type === 'email' 
+                ? t('testMessage.sendTestEmail') 
+                : template.type === 'sms' 
+                  ? t('testMessage.sendTestSms') 
+                  : t('testMessage.sendTestWhatsapp')}
           </Button>
         </DialogFooter>
       </DialogContent>

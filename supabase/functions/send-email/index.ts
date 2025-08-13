@@ -13,6 +13,7 @@ interface EmailRequest {
   templateId?: string;
   campaignId?: string;
   churchId: string;
+  isTest?: boolean;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -21,7 +22,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, content, templateId, campaignId, churchId }: EmailRequest = await req.json();
+    const { to, subject, content, templateId, campaignId, churchId, isTest }: EmailRequest = await req.json();
     
     const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY');
     if (!sendgridApiKey) {
@@ -35,13 +36,13 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Supabase configuration missing');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false
@@ -85,25 +86,42 @@ const handler = async (req: Request): Promise<Response> => {
     // Get SendGrid message ID from response headers
     const messageId = sendgridResponse.headers.get('x-message-id') || crypto.randomUUID();
 
-    // Log message to database
-    const { error: dbError } = await supabase
-      .from('messages')
-      .insert({
-        type: 'email',
-        church_id: churchId,
-        campaign_id: campaignId,
-        template_id: templateId,
-        subject: subject,
-        content: content,
-        recipient_email: to,
-        status: 'sent',
-        external_id: messageId,
-        sent_at: new Date().toISOString(),
-        created_by: user.id
-      });
+    // Log message to database only if not a test and churchId is provided and valid
+    if (!isTest && churchId && churchId !== '00000000-0000-0000-0000-000000000000') {
+      // Verify church exists before logging (service role bypasses RLS)
+      const { data: church, error: churchError } = await supabase
+        .from('churches')
+        .select('id')
+        .eq('id', churchId)
+        .single();
 
-    if (dbError) {
-      console.error('Error logging message to database:', dbError);
+      if (!churchError && church) {
+        const { error: dbError } = await supabase
+          .from('messages')
+          .insert({
+            type: 'email',
+            church_id: churchId,
+            campaign_id: campaignId,
+            template_id: templateId,
+            subject: subject,
+            content: content?.replace(/undefined/g, '').trim(),
+            recipient_email: to,
+            status: 'sent',
+            external_id: messageId,
+            sent_at: new Date().toISOString(),
+            created_by: user.id
+          });
+
+        if (dbError) {
+          console.error('Error logging message to database:', dbError);
+        }
+      } else {
+        console.warn(`Church ID ${churchId} not found, skipping database logging`);
+      }
+    } else if (!isTest) {
+      console.warn('Invalid or missing church ID, skipping database logging');
+    } else {
+      console.log('Test message - skipping database logging');
     }
 
     console.log(`Email sent successfully to ${to}`);

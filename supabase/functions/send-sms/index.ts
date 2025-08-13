@@ -74,7 +74,10 @@ const handler = async (req: Request): Promise<Response> => {
     
     const formData = new URLSearchParams();
     formData.append('From', twilioPhoneNumber);
-    formData.append('To', to);
+    // Normalize destination number to E.164 (+countrycode...)
+    const cleanedTo = to.replace(/[^\d+]/g, '').trim();
+    const formattedTo = cleanedTo.startsWith('+') ? cleanedTo : `+${cleanedTo}`;
+    formData.append('To', formattedTo);
     formData.append('Body', formattedContent);
 
     const twilioResponse = await fetch(twilioUrl, {
