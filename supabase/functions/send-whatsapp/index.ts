@@ -16,7 +16,14 @@ interface WhatsAppMessage {
   isTest?: boolean
 }
 
-// Validate Twilio WhatsApp configuration
+// Detect if using Twilio sandbox or production WhatsApp Business API
+function detectWhatsAppEnvironment(phoneNumber: string) {
+  const cleanNumber = phoneNumber.replace('whatsapp:', '');
+  const isSandbox = cleanNumber === '+14155238886';
+  return { isSandbox, cleanNumber };
+}
+
+// Validate Twilio WhatsApp configuration for production accounts
 function validateTwilioWhatsAppConfig(accountSid: string, authToken: string, phoneNumber: string) {
   const errors = [];
   
@@ -31,15 +38,18 @@ function validateTwilioWhatsAppConfig(accountSid: string, authToken: string, pho
   if (!phoneNumber) {
     errors.push('TWILIO_PHONE_NUMBER is required');
   } else {
-    // Validate phone number format
-    const cleanNumber = phoneNumber.replace('whatsapp:', '');
+    const { isSandbox, cleanNumber } = detectWhatsAppEnvironment(phoneNumber);
+    
     if (!cleanNumber.startsWith('+')) {
-      errors.push('TWILIO_PHONE_NUMBER must include country code with + (e.g., +14155238886)');
+      errors.push('TWILIO_PHONE_NUMBER must include country code with + (e.g., +1234567890)');
     }
     
-    // Check for common sandbox number
-    if (cleanNumber === '+14155238886') {
-      errors.push('SANDBOX_SETUP: You are using the Twilio sandbox number. Make sure to join the sandbox by texting "join [sandbox-name]" to +1 415 523 8886 from your test phone number first.');
+    // Different validation for sandbox vs production
+    if (isSandbox) {
+      errors.push('SANDBOX_DETECTED: You are using the Twilio sandbox number (+14155238886). For production use, configure your approved WhatsApp Business number.');
+    } else {
+      // Production WhatsApp Business API validation
+      console.log('Production WhatsApp Business number detected:', cleanNumber);
     }
   }
   
@@ -71,10 +81,19 @@ async function sendViaTwilio(
 ) {
   const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
 
-  // Validate configuration
+  // Validate configuration and detect environment
+  const { isSandbox } = detectWhatsAppEnvironment(fromPhone);
   const configErrors = validateTwilioWhatsAppConfig(accountSid, authToken, fromPhone);
-  if (configErrors.length > 0) {
-    throw new Error(`Twilio WhatsApp configuration errors:\n${configErrors.join('\n')}`);
+  
+  // Only show sandbox warning if using sandbox in production context
+  const productionErrors = configErrors.filter(error => !error.includes('SANDBOX_DETECTED'));
+  if (productionErrors.length > 0) {
+    throw new Error(`Twilio WhatsApp configuration errors:\n${productionErrors.join('\n')}`);
+  }
+  
+  console.log(`WhatsApp Environment: ${isSandbox ? 'Sandbox' : 'Production Business API'}`);
+  if (isSandbox) {
+    console.log('⚠️ Using Twilio WhatsApp Sandbox - For production, use an approved WhatsApp Business number');
   }
 
   // Format phone numbers for WhatsApp
@@ -139,21 +158,40 @@ async function sendViaTwilio(
       // Handle specific Twilio error codes
       const errorCode = twilioResult.code;
       let errorMessage = twilioResult.message || 'Unknown error';
+      const { isSandbox } = detectWhatsAppEnvironment(fromPhone);
       
       if (errorCode === 63007) {
-        errorMessage = `WhatsApp Channel Error: ${twilioResult.message}
-        
-Common solutions:
-1. If using sandbox: Join the WhatsApp sandbox by texting "join [sandbox-name]" to +1 415 523 8886 from your test phone number
-2. Verify TWILIO_PHONE_NUMBER is set to the correct sandbox number: +14155238886
-3. If using production: Ensure your Twilio phone number is approved for WhatsApp Business API
-4. Check that your recipient phone number ${recipient_phone} is registered for WhatsApp sandbox testing
+        if (isSandbox) {
+          errorMessage = `WhatsApp Sandbox Channel Error: ${twilioResult.message}
 
-Twilio Error Documentation: https://www.twilio.com/docs/errors/63007`;
+Sandbox Setup Required:
+1. Join the WhatsApp sandbox by texting "join [your-sandbox-name]" to +1 415 523 8886 from your test phone number
+2. Wait for the confirmation message from Twilio
+3. Ensure your test phone number ${recipient_phone} is properly formatted with country code
+4. Verify TWILIO_PHONE_NUMBER is set to +14155238886
+
+Twilio Sandbox Documentation: https://www.twilio.com/docs/whatsapp/sandbox`;
+        } else {
+          errorMessage = `WhatsApp Business API Configuration Error: ${twilioResult.message}
+
+Production Setup Issues:
+1. Verify your WhatsApp Business Profile is approved and active
+2. Check that your Twilio phone number ${fromPhone} is approved for WhatsApp Business API  
+3. Ensure your WhatsApp Business Account is connected to Twilio
+4. Verify the sender phone number is registered as a WhatsApp Business number
+5. Check if your account has proper WhatsApp Business API permissions
+
+Twilio Console: https://console.twilio.com/us1/develop/sms/settings/whatsapp-senders
+WhatsApp Business API Docs: https://www.twilio.com/docs/whatsapp/api`;
+        }
       } else if (errorCode === 21211) {
         errorMessage = `Invalid phone number: ${twilioResult.message}. Please check the phone number format (must include country code with +)`;
       } else if (errorCode === 21614) {
         errorMessage = `WhatsApp message failed: ${twilioResult.message}. The recipient may not be registered for WhatsApp or may have blocked your number.`;
+      } else if (errorCode === 63016) {
+        errorMessage = `WhatsApp Business API Template Error: ${twilioResult.message}. Check if your message template is approved and properly formatted.`;
+      } else if (errorCode === 63015) {
+        errorMessage = `WhatsApp Number Not Approved: ${twilioResult.message}. Your WhatsApp Business number needs approval from WhatsApp Business API.`;
       }
       
       throw new Error(errorMessage);
