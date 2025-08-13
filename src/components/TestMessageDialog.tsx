@@ -82,16 +82,20 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
         throw new Error("Invalid template type")
       }
 
+      console.log(`Sending test ${template.type} with body:`, body)
+      
       const { data, error } = await supabase.functions.invoke(functionName, { 
-        body,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        body
       })
 
       if (error) {
         console.error('Test message error:', error)
-        throw error
+        throw new Error(`Function error: ${error.message || 'Unknown error'}`)
+      }
+
+      if (data?.error) {
+        console.error('Function returned error:', data.error)
+        throw new Error(data.error)
       }
 
       console.log('Test message response:', data)
