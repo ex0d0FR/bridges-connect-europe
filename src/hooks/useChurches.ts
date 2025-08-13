@@ -51,7 +51,7 @@ export const useChurches = (searchTerm?: string) => {
         .order('created_at', { ascending: false });
 
       if (searchTerm) {
-        query = query.or(`name.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%`);
+        query = query.or(`name.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%,country.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%,denomination.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;
