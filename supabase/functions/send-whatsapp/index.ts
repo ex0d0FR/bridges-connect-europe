@@ -89,7 +89,21 @@ async function sendViaEvolution(
       )
     ]) as Response;
 
-    evolutionResult = await evolutionResponse.json();
+    if (!evolutionResponse.ok) {
+      const errorText = await evolutionResponse.text();
+      console.error(`Evolution API HTTP error: ${evolutionResponse.status} - ${errorText}`);
+      throw new Error(`Evolution API HTTP error: ${evolutionResponse.status}. Check if your Evolution API server is running and accessible at ${apiUrl}.`);
+    }
+
+    const responseText = await evolutionResponse.text();
+    console.log(`Evolution API raw response: ${responseText.substring(0, 200)}`);
+    
+    try {
+      evolutionResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Evolution API returned non-JSON response:', responseText.substring(0, 500));
+      throw new Error(`Evolution API returned invalid response. This usually means the API server is not running properly or the URL is incorrect. Check your EVOLUTION_API_URL setting. Received: ${responseText.substring(0, 100)}`);
+    }
   } catch (error) {
     console.error('Evolution API connection error:', error);
     
@@ -97,21 +111,11 @@ async function sendViaEvolution(
       throw new Error(`Cannot connect to Evolution API at ${apiUrl}. Please check that the API is running and accessible.`);
     } else if (error.message.includes('timeout')) {
       throw new Error(`Evolution API request timeout. The API at ${apiUrl} is not responding.`);
+    } else if (error.message.includes('invalid response') || error.message.includes('HTTP error')) {
+      throw error; // Re-throw our custom errors
     } else {
       throw new Error(`Evolution API connection failed: ${error.message}`);
     }
-  }
-
-  if (!evolutionResponse.ok) {
-    console.error('Evolution API error details:', {
-      status: evolutionResponse.status,
-      statusText: evolutionResponse.statusText,
-      response: evolutionResult,
-      phoneNumber: recipient_phone,
-      instanceName: instanceName
-    });
-    
-    throw new Error(`Evolution API error: ${evolutionResult.message || 'Unknown error'} (Status: ${evolutionResponse.status})`);
   }
 
   console.log('Evolution API message sent successfully:', evolutionResult);
