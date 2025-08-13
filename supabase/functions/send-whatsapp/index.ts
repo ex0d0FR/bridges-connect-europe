@@ -16,25 +16,48 @@ interface WhatsAppMessage {
   isTest?: boolean
 }
 
-// Validate Evolution API configuration
-function validateEvolutionConfig(apiUrl: string, apiKey: string, instanceName: string) {
+// Validate Twilio WhatsApp configuration
+function validateTwilioWhatsAppConfig(accountSid: string, authToken: string, phoneNumber: string) {
   const errors = [];
   
-  if (!apiUrl) {
-    errors.push('EVOLUTION_API_URL is required');
-  } else if (apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')) {
-    errors.push('EVOLUTION_API_URL cannot be localhost - use ngrok or a public URL');
+  if (!accountSid) {
+    errors.push('TWILIO_ACCOUNT_SID is required');
   }
   
-  if (!apiKey) {
-    errors.push('EVOLUTION_API_KEY is required');
+  if (!authToken) {
+    errors.push('TWILIO_AUTH_TOKEN is required');
   }
   
-  if (!instanceName) {
-    errors.push('EVOLUTION_INSTANCE_NAME is required');
+  if (!phoneNumber) {
+    errors.push('TWILIO_PHONE_NUMBER is required');
+  } else {
+    // Validate phone number format
+    const cleanNumber = phoneNumber.replace('whatsapp:', '');
+    if (!cleanNumber.startsWith('+')) {
+      errors.push('TWILIO_PHONE_NUMBER must include country code with + (e.g., +14155238886)');
+    }
+    
+    // Check for common sandbox number
+    if (cleanNumber === '+14155238886') {
+      errors.push('SANDBOX_SETUP: You are using the Twilio sandbox number. Make sure to join the sandbox by texting "join [sandbox-name]" to +1 415 523 8886 from your test phone number first.');
+    }
   }
   
   return errors;
+}
+
+// Format phone number for WhatsApp
+function formatWhatsAppNumber(phone: string): string {
+  // Remove any existing whatsapp: prefix
+  let cleanNumber = phone.replace('whatsapp:', '');
+  
+  // Ensure it starts with +
+  if (!cleanNumber.startsWith('+')) {
+    // If it doesn't start with +, assume it needs a country code
+    console.warn(`Phone number ${cleanNumber} doesn't include country code. This may cause issues.`);
+  }
+  
+  return `whatsapp:${cleanNumber}`;
 }
 
 // Twilio WhatsApp function
@@ -49,13 +72,21 @@ async function sendViaTwilio(
   const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
 
   // Validate configuration
-  if (!accountSid || !authToken || !fromPhone) {
-    throw new Error('Twilio configuration incomplete. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER');
+  const configErrors = validateTwilioWhatsAppConfig(accountSid, authToken, fromPhone);
+  if (configErrors.length > 0) {
+    throw new Error(`Twilio WhatsApp configuration errors:\n${configErrors.join('\n')}`);
   }
 
-  // Ensure the from number is in WhatsApp format
-  const twilioFromNumber = fromPhone.startsWith('whatsapp:') ? fromPhone : `whatsapp:${fromPhone}`;
-  const twilioToNumber = recipient_phone.startsWith('whatsapp:') ? recipient_phone : `whatsapp:${recipient_phone}`;
+  // Format phone numbers for WhatsApp
+  const twilioFromNumber = formatWhatsAppNumber(fromPhone);
+  const twilioToNumber = formatWhatsAppNumber(recipient_phone);
+
+  console.log('Using phone numbers:', {
+    from: twilioFromNumber,
+    to: twilioToNumber,
+    originalFrom: fromPhone,
+    originalTo: recipient_phone
+  });
 
   // Twilio API endpoint
   const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
@@ -104,7 +135,28 @@ async function sendViaTwilio(
 
     if (!twilioResponse.ok) {
       console.error(`Twilio API HTTP error: ${twilioResponse.status} - ${responseText}`);
-      throw new Error(`Twilio API error: ${twilioResult.message || 'Unknown error'} (Code: ${twilioResult.code || 'unknown'})`);
+      
+      // Handle specific Twilio error codes
+      const errorCode = twilioResult.code;
+      let errorMessage = twilioResult.message || 'Unknown error';
+      
+      if (errorCode === 63007) {
+        errorMessage = `WhatsApp Channel Error: ${twilioResult.message}
+        
+Common solutions:
+1. If using sandbox: Join the WhatsApp sandbox by texting "join [sandbox-name]" to +1 415 523 8886 from your test phone number
+2. Verify TWILIO_PHONE_NUMBER is set to the correct sandbox number: +14155238886
+3. If using production: Ensure your Twilio phone number is approved for WhatsApp Business API
+4. Check that your recipient phone number ${recipient_phone} is registered for WhatsApp sandbox testing
+
+Twilio Error Documentation: https://www.twilio.com/docs/errors/63007`;
+      } else if (errorCode === 21211) {
+        errorMessage = `Invalid phone number: ${twilioResult.message}. Please check the phone number format (must include country code with +)`;
+      } else if (errorCode === 21614) {
+        errorMessage = `WhatsApp message failed: ${twilioResult.message}. The recipient may not be registered for WhatsApp or may have blocked your number.`;
+      }
+      
+      throw new Error(errorMessage);
     }
   } catch (error) {
     console.error('Twilio API connection error:', error);
