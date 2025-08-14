@@ -1,4 +1,5 @@
 
+import React, { useEffect } from "react";
 import {
   Calendar,
   Church,
@@ -30,14 +31,22 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { NavLink } from "react-router-dom"
+import { NavLink, useLocation } from "react-router-dom"
 import { useLanguage } from "@/contexts/LanguageContext"
 import { useIsAdmin } from "@/hooks/useProfile"
 
 export function AppSidebar() {
   const { t } = useLanguage();
   const isAdmin = useIsAdmin();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const location = useLocation();
+
+  // Auto-close mobile sidebar on navigation
+  useEffect(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [location.pathname, isMobile, setOpenMobile]);
 
   const menuItems = [
     {

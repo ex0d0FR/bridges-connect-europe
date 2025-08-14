@@ -229,9 +229,18 @@ function extractEmailsFromText(text: string): string[] {
 }
 
 async function performWebSearch(query: string): Promise<string | null> {
-  // Try different search services in order of preference
+  // Try Tavily first (primary choice)
+  const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
+  if (tavilyApiKey) {
+    try {
+      const tavilyResult = await searchWithTavily(query, tavilyApiKey);
+      if (tavilyResult) return tavilyResult;
+    } catch (error) {
+      console.log(`Tavily search failed: ${error.message}`);
+    }
+  }
   
-  // Try SerpAPI first
+  // Try SerpAPI as fallback
   const serpApiKey = Deno.env.get('SERPAPI_KEY');
   if (serpApiKey) {
     try {
@@ -242,7 +251,7 @@ async function performWebSearch(query: string): Promise<string | null> {
     }
   }
   
-  // Try Scrapfly as fallback
+  // Try Scrapfly as final fallback
   const scrapflyApiKey = Deno.env.get('SCRAPFLY_API_KEY');
   if (scrapflyApiKey) {
     try {
@@ -253,6 +262,45 @@ async function performWebSearch(query: string): Promise<string | null> {
     }
   }
   
+  return null;
+}
+
+async function searchWithTavily(query: string, apiKey: string): Promise<string | null> {
+  const tavilyUrl = 'https://api.tavily.com/search';
+  
+  const requestBody = {
+    query,
+    search_depth: 'basic',
+    include_answer: false,
+    include_images: false,
+    include_raw_content: true,
+    max_results: 5,
+    exclude_domains: ['facebook.com', 'twitter.com', 'instagram.com', 'youtube.com']
+  };
+
+  const response = await fetch(tavilyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Tavily API error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  
+  if (data.results && data.results.length > 0) {
+    const combinedContent = data.results
+      .map((result: any) => `${result.title || ''} ${result.content || ''} ${result.raw_content || ''}`)
+      .join(' ');
+    
+    return combinedContent;
+  }
+
   return null;
 }
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionTimeout } from '@/hooks/useSessionTimeout';
 
 interface AuthContextType {
   user: User | null;
@@ -17,6 +18,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+  };
+
+  // Session timeout integration
+  useSessionTimeout({
+    timeoutMinutes: 30,
+    warningMinutes: 5,
+    onTimeout: async () => {
+      await signOut();
+    }
+  });
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -59,9 +73,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
 
   const value = {
     user,
