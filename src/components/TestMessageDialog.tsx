@@ -110,7 +110,7 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
           recipient_phone: formattedPhone,
           message_body: template.content,
           message_type: 'text',
-          provider: 'evolution', // Prefer Evolution API
+          provider: 'twilio',
           isTest: true
         }
       } else {

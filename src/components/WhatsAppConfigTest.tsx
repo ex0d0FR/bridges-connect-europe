@@ -7,17 +7,15 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 
 interface ConfigStatus {
-  evolutionApi: {
+  twilio: {
     configured: boolean
-    connected: boolean
-    instance: string | null
-    error?: string
-  }
-  whatsappApi: {
-    configured: boolean
-    connected: boolean
+    status: string
     phoneNumber: string | null
-    error?: string
+    details: {
+      hasAccountSid: boolean
+      hasAuthToken: boolean
+      hasPhoneNumber: boolean
+    }
   }
   recommendation: string
 }
@@ -38,15 +36,15 @@ export function WhatsAppConfigTest() {
 
       setStatus(data)
       
-      if (data.evolutionApi.connected || data.whatsappApi.connected) {
+      if (data.twilio.status === 'connected') {
         toast({
           title: "Configuration Test Complete",
-          description: "WhatsApp configuration tested successfully",
+          description: "Twilio WhatsApp configuration tested successfully",
         })
       } else {
         toast({
           title: "Configuration Issues Found",
-          description: "Please check your WhatsApp settings",
+          description: "Please check your Twilio WhatsApp settings",
           variant: "destructive",
         })
       }
@@ -62,16 +60,16 @@ export function WhatsAppConfigTest() {
     }
   }
 
-  const getStatusIcon = (configured: boolean, connected: boolean) => {
-    if (!configured) return <XCircle className="h-4 w-4 text-destructive" />
-    if (connected) return <CheckCircle className="h-4 w-4 text-green-600" />
+  const getStatusIcon = (status: string) => {
+    if (status === 'not configured') return <XCircle className="h-4 w-4 text-destructive" />
+    if (status === 'connected') return <CheckCircle className="h-4 w-4 text-green-600" />
     return <AlertCircle className="h-4 w-4 text-yellow-600" />
   }
 
-  const getStatusBadge = (configured: boolean, connected: boolean) => {
-    if (!configured) return <Badge variant="destructive">Not Configured</Badge>
-    if (connected) return <Badge className="bg-green-600">Connected</Badge>
-    return <Badge variant="outline">Configured but Not Connected</Badge>
+  const getStatusBadge = (status: string) => {
+    if (status === 'not configured') return <Badge variant="destructive">Not Configured</Badge>
+    if (status === 'connected') return <Badge className="bg-green-600">Connected</Badge>
+    return <Badge variant="outline">{status}</Badge>
   }
 
   return (
@@ -100,49 +98,57 @@ export function WhatsAppConfigTest() {
       <CardContent className="space-y-4">
         {status ? (
           <>
-            {/* Evolution API Status */}
+            {/* Twilio WhatsApp Status */}
             <div className="flex items-center justify-between p-3 border rounded-lg">
               <div className="flex items-center space-x-3">
-                {getStatusIcon(status.evolutionApi.configured, status.evolutionApi.connected)}
+                {getStatusIcon(status.twilio.status)}
                 <div>
-                  <h4 className="font-medium">Evolution API</h4>
+                  <h4 className="font-medium">Twilio WhatsApp</h4>
                   <p className="text-sm text-muted-foreground">
-                    {status.evolutionApi.instance ? `Instance: ${status.evolutionApi.instance}` : 'Not configured'}
+                    {status.twilio.phoneNumber ? `Phone: ${status.twilio.phoneNumber}` : 'Not configured'}
                   </p>
-                  {status.evolutionApi.error && (
-                    <p className="text-sm text-destructive">{status.evolutionApi.error}</p>
+                  {status.twilio.status.includes('error') && (
+                    <p className="text-sm text-destructive">{status.twilio.status}</p>
                   )}
                 </div>
               </div>
-              {getStatusBadge(status.evolutionApi.configured, status.evolutionApi.connected)}
+              {getStatusBadge(status.twilio.status)}
             </div>
 
-            {/* WhatsApp Business API Status */}
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center space-x-3">
-                {getStatusIcon(status.whatsappApi.configured, status.whatsappApi.connected)}
-                <div>
-                  <h4 className="font-medium">WhatsApp Business API</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {status.whatsappApi.phoneNumber ? `Phone: ${status.whatsappApi.phoneNumber}` : 'Not configured'}
-                  </p>
-                  {status.whatsappApi.error && (
-                    <p className="text-sm text-destructive">{status.whatsappApi.error}</p>
-                  )}
-                </div>
+            {/* Configuration Details */}
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div className="flex items-center space-x-2">
+                {status.twilio.details.hasAccountSid ? 
+                  <CheckCircle className="h-3 w-3 text-green-600" /> : 
+                  <XCircle className="h-3 w-3 text-destructive" />
+                }
+                <span>Account SID</span>
               </div>
-              {getStatusBadge(status.whatsappApi.configured, status.whatsappApi.connected)}
+              <div className="flex items-center space-x-2">
+                {status.twilio.details.hasAuthToken ? 
+                  <CheckCircle className="h-3 w-3 text-green-600" /> : 
+                  <XCircle className="h-3 w-3 text-destructive" />
+                }
+                <span>Auth Token</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                {status.twilio.details.hasPhoneNumber ? 
+                  <CheckCircle className="h-3 w-3 text-green-600" /> : 
+                  <XCircle className="h-3 w-3 text-destructive" />
+                }
+                <span>Phone Number</span>
+              </div>
             </div>
 
             {/* Recommendation */}
             <div className="p-3 bg-muted rounded-lg">
-              <h4 className="font-medium mb-2">Recommendation</h4>
+              <h4 className="font-medium mb-2">Status</h4>
               <p className="text-sm text-muted-foreground">{status.recommendation}</p>
             </div>
           </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
-            Click "Test Configuration" to check your WhatsApp settings
+            Click "Test Configuration" to check your Twilio WhatsApp settings
           </div>
         )}
       </CardContent>

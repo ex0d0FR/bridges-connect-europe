@@ -22,90 +22,62 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     }
-    // Get all WhatsApp configuration variables
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
-    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
-    const evolutionInstanceToken = Deno.env.get('EVOLUTION_INSTANCE_TOKEN');
-    
-    const whatsappAccessToken = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
-    const whatsappPhoneNumberId = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
+    // Get Twilio WhatsApp configuration variables
+    const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
+    const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
+    const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
 
-    // Check Evolution API configuration
-    const evolutionConfigComplete = evolutionApiUrl && evolutionApiKey && evolutionInstanceName && evolutionInstanceToken;
-    
-    // Check WhatsApp Business API configuration
-    const whatsappConfigComplete = whatsappAccessToken && whatsappPhoneNumberId;
+    // Check Twilio configuration
+    const twilioConfigComplete = twilioAccountSid && twilioAuthToken && twilioPhoneNumber;
 
-    // Test Evolution API connection if configured
-    let evolutionApiStatus = 'not configured';
-    if (evolutionConfigComplete) {
+    // Test Twilio WhatsApp connection if configured
+    let twilioStatus = 'not configured';
+    if (twilioConfigComplete) {
       try {
-        const response = await fetch(`${evolutionApiUrl}/instance/connectionState/${evolutionInstanceName}`, {
+        // Test by attempting to validate the phone number via Twilio's API
+        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(twilioPhoneNumber)}`, {
           method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
-            'apikey': evolutionApiKey,
+            'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
           },
         });
         
         if (response.ok) {
           const data = await response.json();
-          evolutionApiStatus = data.instance?.state || 'unknown';
-        } else {
-          evolutionApiStatus = `error: ${response.status}`;
-        }
-      } catch (error) {
-        evolutionApiStatus = `connection failed: ${error.message}`;
-      }
-    }
-
-    // Test WhatsApp Business API if configured
-    let whatsappApiStatus = 'not configured';
-    if (whatsappConfigComplete) {
-      try {
-        const response = await fetch(`https://graph.facebook.com/v17.0/${whatsappPhoneNumberId}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${whatsappAccessToken}`,
-          },
-        });
-        
-        if (response.ok) {
-          whatsappApiStatus = 'connected';
+          if (data.incoming_phone_numbers && data.incoming_phone_numbers.length > 0) {
+            const phoneNumberData = data.incoming_phone_numbers[0];
+            // Check if it has WhatsApp capabilities
+            if (phoneNumberData.capabilities && phoneNumberData.capabilities.sms) {
+              twilioStatus = 'connected';
+            } else {
+              twilioStatus = 'configured but no WhatsApp capability';
+            }
+          } else {
+            twilioStatus = 'phone number not found in account';
+          }
         } else {
           const errorData = await response.json();
-          whatsappApiStatus = `error: ${errorData.error?.message || response.status}`;
+          twilioStatus = `error: ${errorData.message || response.status}`;
         }
       } catch (error) {
-        whatsappApiStatus = `connection failed: ${error.message}`;
+        twilioStatus = `connection failed: ${error.message}`;
       }
     }
 
     const configStatus = {
-      evolution: {
-        configured: evolutionConfigComplete,
-        status: evolutionApiStatus,
+      twilio: {
+        configured: twilioConfigComplete,
+        status: twilioStatus,
+        phoneNumber: twilioPhoneNumber || null,
         details: {
-          hasApiUrl: !!evolutionApiUrl,
-          hasApiKey: !!evolutionApiKey,
-          hasInstanceName: !!evolutionInstanceName,
-          hasInstanceToken: !!evolutionInstanceToken,
+          hasAccountSid: !!twilioAccountSid,
+          hasAuthToken: !!twilioAuthToken,
+          hasPhoneNumber: !!twilioPhoneNumber,
         }
       },
-      whatsapp: {
-        configured: whatsappConfigComplete,
-        status: whatsappApiStatus,
-        details: {
-          hasAccessToken: !!whatsappAccessToken,
-          hasPhoneNumberId: !!whatsappPhoneNumberId,
-        }
-      },
-      recommendation: evolutionConfigComplete && evolutionApiStatus === 'open' 
-        ? 'Use Evolution API' 
-        : whatsappConfigComplete && whatsappApiStatus === 'connected'
-        ? 'Use WhatsApp Business API'
-        : 'Configure at least one WhatsApp service'
+      recommendation: twilioConfigComplete && twilioStatus === 'connected'
+        ? 'Twilio WhatsApp is ready to use'
+        : 'Configure Twilio for WhatsApp messaging'
     };
 
     return new Response(JSON.stringify(configStatus), {
