@@ -19,7 +19,8 @@ interface WhatsAppMessage {
 // Detect if using Twilio sandbox or production WhatsApp Business API
 function detectWhatsAppEnvironment(phoneNumber: string) {
   const cleanNumber = phoneNumber.replace('whatsapp:', '');
-  const isSandbox = cleanNumber === '+14155238886';
+  // Twilio sandbox number is +1 415 523 8886
+  const isSandbox = cleanNumber === '+14155238886' || cleanNumber === '+1 415 523 8886' || cleanNumber === '14155238886';
   return { isSandbox, cleanNumber };
 }
 
@@ -161,29 +162,28 @@ async function sendViaTwilio(
       const { isSandbox } = detectWhatsAppEnvironment(fromPhone);
       
       if (errorCode === 63007) {
-        if (isSandbox) {
-          errorMessage = `WhatsApp Sandbox Channel Error: ${twilioResult.message}
+        errorMessage = `WhatsApp Channel Configuration Error (Code 63007): ${twilioResult.message}
 
-Sandbox Setup Required:
-1. Join the WhatsApp sandbox by texting "join [your-sandbox-name]" to +1 415 523 8886 from your test phone number
-2. Wait for the confirmation message from Twilio
-3. Ensure your test phone number ${recipient_phone} is properly formatted with country code
-4. Verify TWILIO_PHONE_NUMBER is set to +14155238886
+The 'From' phone number ${fromPhone} is not configured as a WhatsApp sender in your Twilio account.
 
-Twilio Sandbox Documentation: https://www.twilio.com/docs/whatsapp/sandbox`;
-        } else {
-          errorMessage = `WhatsApp Business API Configuration Error: ${twilioResult.message}
+IMMEDIATE FIX:
+1. Go to Twilio Console: https://console.twilio.com/us1/develop/sms/settings/whatsapp-senders
+2. Add your phone number ${fromPhone.replace('whatsapp:', '')} as a WhatsApp sender
+3. Or use the Twilio sandbox number +14155238886 for testing
 
-Production Setup Issues:
-1. Verify your WhatsApp Business Profile is approved and active
-2. Check that your Twilio phone number ${fromPhone} is approved for WhatsApp Business API  
-3. Ensure your WhatsApp Business Account is connected to Twilio
-4. Verify the sender phone number is registered as a WhatsApp Business number
-5. Check if your account has proper WhatsApp Business API permissions
+For Sandbox Testing:
+- Set TWILIO_PHONE_NUMBER to: +14155238886
+- Join sandbox by texting "join [sandbox-name]" to +14155238886
 
-Twilio Console: https://console.twilio.com/us1/develop/sms/settings/whatsapp-senders
-WhatsApp Business API Docs: https://www.twilio.com/docs/whatsapp/api`;
-        }
+For Production:
+- Your phone number must be approved as a WhatsApp Business sender
+- Complete WhatsApp Business verification process in Twilio Console
+- Ensure your WhatsApp Business Profile is active and approved
+
+Current Configuration:
+- Account SID: ${accountSid}
+- From Number: ${fromPhone}
+- Environment: ${isSandbox ? 'Sandbox' : 'Production'}`;
       } else if (errorCode === 21211) {
         errorMessage = `Invalid phone number: ${twilioResult.message}. Please check the phone number format (must include country code with +)`;
       } else if (errorCode === 21614) {
