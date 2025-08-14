@@ -128,45 +128,65 @@ const handler = async (req: Request): Promise<Response> => {
     const discoveryPromise = async () => {
       let allChurches: DiscoveredChurch[] = [];
 
+      const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
       const scrapflyApiKey = Deno.env.get('SCRAPFLY_API_KEY');
       const apifyApiKey = Deno.env.get('APIFY_API_KEY');
       const brightDataApiKey = Deno.env.get('BRIGHT_DATA_API_KEY');
       
-      // Check which scraping services are available
+      // Check which scraping services are available (Tavily first)
       const availableServices = [];
+      if (tavilyApiKey) availableServices.push('Tavily');
       if (scrapflyApiKey) availableServices.push('Scrapfly');
       if (brightDataApiKey) availableServices.push('Bright Data');
       
       if (availableServices.length === 0) {
-        throw new Error('No scraping service API keys configured. Please configure SCRAPFLY_API_KEY or BRIGHT_DATA_API_KEY');
+        throw new Error('No scraping service API keys configured. Please configure TAVILY_API_KEY, SCRAPFLY_API_KEY or BRIGHT_DATA_API_KEY');
       }
 
+      console.log('TAVILY_API_KEY available:', !!tavilyApiKey);
       console.log('SCRAPFLY_API_KEY available:', !!scrapflyApiKey);
       console.log('APIFY_API_KEY available:', !!apifyApiKey);
       console.log('BRIGHT_DATA_API_KEY available:', !!brightDataApiKey);
       console.log('Available scraping services:', availableServices.join(', '));
-      console.log(`Starting real data collection with Scrapfly for: ${location}`);
+      console.log(`Starting real data collection with primary service for: ${location}`);
     
     // Determine language and region based on location
     const { language, region, searchTerms } = getLocationSettings(location);
     console.log(`Using language: ${language}, region: ${region}, search terms: ${searchTerms.join(', ')}`);
     
-    // Use Scrapfly to scrape Google Maps search results
+    // Try services in order of preference: Tavily first, then Scrapfly, then Bright Data
     for (const searchTerm of searchTerms) { // Process all search terms
       try {
-        console.log(`Searching with Scrapfly for: ${searchTerm}`);
+        console.log(`Searching for: ${searchTerm}`);
         
         const searchQuery = `${searchTerm} ${location}`;
         console.log(`Search query: ${searchQuery}`);
         
-        // Construct Google Maps search URL
+        let response: Response | null = null;
+        let serviceUsed = '';
+        let churches: DiscoveredChurch[] = [];
+        
+        // Try Tavily first (primary choice)
+        if (tavilyApiKey) {
+          try {
+            console.log(`Trying Tavily for: ${searchTerm}`);
+            churches = await searchWithTavily(searchQuery, tavilyApiKey, filterNonCatholic);
+            if (churches.length > 0) {
+              serviceUsed = 'Tavily';
+              allChurches.push(...churches);
+              console.log(`Tavily found ${churches.length} churches for: ${searchTerm}`);
+              continue; // Skip other services if Tavily was successful
+            }
+          } catch (error) {
+            console.error(`Tavily error: ${error.message}`);
+          }
+        }
+        
+        // Construct Google Maps search URL for scraping services
         const encodedQuery = encodeURIComponent(searchQuery);
         const googleMapsUrl = `https://www.google.com/maps/search/${encodedQuery}`;
         
-        // Try scraping services in order of preference: Scrapfly first, then Bright Data
-        let response: Response | null = null;
-        let serviceUsed = '';
-        
+        // If Tavily failed or unavailable, try Scrapfly
         if (scrapflyApiKey) {
           try {
             console.log(`Trying Scrapfly for: ${searchTerm}`);
@@ -377,6 +397,131 @@ const handler = async (req: Request): Promise<Response> => {
     );
   }
 };
+
+// ============= TAVILY INTEGRATION =============
+
+async function searchWithTavily(query: string, apiKey: string, filterNonCatholic: boolean): Promise<DiscoveredChurch[]> {
+  try {
+    console.log(`Tavily search for: "${query}"`);
+    
+    const tavilyUrl = 'https://api.tavily.com/search';
+    const payload = {
+      api_key: apiKey,
+      query: query,
+      search_depth: "advanced",
+      include_domains: [],
+      exclude_domains: [],
+      max_results: 20,
+      include_answer: false,
+      include_raw_content: true,
+      format: "json"
+    };
+
+    const response = await fetch(tavilyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Tavily API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const churches: DiscoveredChurch[] = [];
+    
+    console.log(`Tavily returned ${data.results?.length || 0} results`);
+    
+    if (data.results && Array.isArray(data.results)) {
+      for (const result of data.results) {
+        try {
+          // Check if this result is about a church
+          const isChurch = isChurchResult(result.title + ' ' + result.content);
+          if (!isChurch) continue;
+
+          // Filter out Catholic churches if requested
+          const isCatholic = /catholic|st\.|saint|our lady|holy|sacred heart|basilica|cathedral|abbey|monastery/i.test(result.title || '');
+          if (filterNonCatholic && isCatholic) continue;
+
+          // Extract church information from the result
+          const church = extractChurchFromTavilyResult(result, query);
+          if (church) {
+            churches.push(church);
+            console.log(`Added church from Tavily: ${church.name}`);
+          }
+        } catch (error) {
+          console.error('Error parsing Tavily result:', error);
+        }
+      }
+    }
+    
+    return churches;
+  } catch (error) {
+    console.error('Tavily API error:', error);
+    return [];
+  }
+}
+
+function isChurchResult(text: string): boolean {
+  const churchKeywords = [
+    'church', 'iglesia', 'église', 'chiesa', 'kirche', 'igreja', 
+    'temple', 'templo', 'congregacion', 'congregação', 'assemblée', 
+    'gemeinde', 'chapel', 'capilla', 'baptist', 'methodist', 
+    'presbyterian', 'pentecostal', 'evangelical', 'protestant',
+    'cathedral', 'parish', 'ministry', 'congregation', 'sanctuary',
+    'assembly', 'fellowship', 'basilica'
+  ];
+  
+  return churchKeywords.some(keyword => 
+    text.toLowerCase().includes(keyword)
+  );
+}
+
+function extractChurchFromTavilyResult(result: any, originalQuery: string): DiscoveredChurch | null {
+  try {
+    // Extract basic info
+    const name = result.title || 'Unknown Church';
+    const content = result.content || '';
+    const url = result.url || '';
+    
+    // Try to extract contact information from content
+    const emailMatch = content.match(/[\w\.-]+@[\w\.-]+\.\w+/);
+    const phoneMatch = content.match(/(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/);
+    const websiteMatch = url.match(/^https?:\/\//) ? url : null;
+    
+    // Try to extract address from content
+    const addressMatch = content.match(/\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|drive|dr|lane|ln|boulevard|blvd)[^,]*,\s*[\w\s]+,\s*\w{2}/i);
+    
+    // Extract location from original query
+    const locationParts = originalQuery.split(' ');
+    const city = locationParts[locationParts.length - 2] || '';
+    const country = locationParts[locationParts.length - 1] || '';
+    
+    const church: DiscoveredChurch = {
+      name: name,
+      address: addressMatch ? addressMatch[0] : undefined,
+      city: city,
+      country: country,
+      phone: phoneMatch ? phoneMatch[0] : undefined,
+      email: emailMatch ? emailMatch[0] : undefined,
+      website: websiteMatch,
+      contact_name: extractContactName(content, name),
+      denomination: extractDenomination(name, content),
+      source: 'Tavily Search',
+      confidence_score: 75, // Base confidence for Tavily results
+      additional_info: {
+        description: content.substring(0, 200) + (content.length > 200 ? '...' : '')
+      }
+    };
+    
+    return church;
+  } catch (error) {
+    console.error('Error extracting church from Tavily result:', error);
+    return null;
+  }
+}
 
 // ============= BRIGHT DATA INTEGRATION =============
 
