@@ -47,7 +47,7 @@ const handler = async (req: Request): Promise<Response> => {
           if (data.incoming_phone_numbers && data.incoming_phone_numbers.length > 0) {
             const phoneNumberData = data.incoming_phone_numbers[0];
             // Check if it has WhatsApp capabilities
-            if (phoneNumberData.capabilities && phoneNumberData.capabilities.sms) {
+            if (phoneNumberData.capabilities && phoneNumberData.capabilities.mms) {
               twilioStatus = 'connected';
             } else {
               twilioStatus = 'configured but no WhatsApp capability';
@@ -87,10 +87,10 @@ const handler = async (req: Request): Promise<Response> => {
         ...corsHeaders,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error in whatsapp-config-test function:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: (error as Error).message }),
       {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders },

@@ -7,14 +7,14 @@ const corsHeaders = {
 }
 
 interface WhatsAppMessage {
-  recipient_phone: string
-  template_name?: string
-  language_code?: string
-  template_components?: any[]
-  message_body?: string
-  message_type: 'template' | 'text'
-  provider?: 'twilio'
-  isTest?: boolean
+  recipient_phone: string;
+  template_name?: string;
+  language_code?: string;
+  template_components?: unknown[];
+  message_body?: string;
+  message_type: 'template' | 'text';
+  provider?: 'twilio';
+  isTest?: boolean;
 }
 
 // Detect if using Twilio sandbox or production WhatsApp Business API
@@ -61,7 +61,7 @@ function validateTwilioWhatsAppConfig(accountSid: string, authToken: string, pho
 // Format phone number for WhatsApp
 function formatWhatsAppNumber(phone: string): string {
   // Remove any existing whatsapp: prefix
-  let cleanNumber = phone.replace('whatsapp:', '');
+  const cleanNumber = phone.replace('whatsapp:', '');
   
   // Ensure it starts with +
   if (!cleanNumber.startsWith('+')) {
@@ -78,11 +78,22 @@ async function sendViaTwilio(
   accountSid: string,
   authToken: string,
   fromPhone: string,
-  messageData: any,
+  messageData: {
+    recipient_phone: string;
+    message_body: string;
+    message_type: string;
+    isTest: boolean;
+    templateId: string;
+    campaignId: string;
+    churchId: string;
+    user: { id: string };
+    template_name?: string;
+    template_components?: unknown[];
+  },
   supabaseClient: any,
   corsHeaders: any
 ) {
-  const { recipient_phone, message_body, isTest, templateId, campaignId, churchId, user } = messageData;
+  const { recipient_phone, message_body, message_type, isTest, templateId, campaignId, churchId, user } = messageData;
 
   // Validate configuration and detect environment
   const { isSandbox } = detectWhatsAppEnvironment(fromPhone);
@@ -114,17 +125,42 @@ async function sendViaTwilio(
   const twilioEndpoint = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
   console.log('Twilio WhatsApp endpoint:', twilioEndpoint);
 
-  const twilioPayload = new URLSearchParams({
-    From: twilioFromNumber,
-    To: twilioToNumber,
-    Body: message_body
-  });
+  let twilioPayload;
 
-  console.log('Sending Twilio WhatsApp message:', {
-    from: twilioFromNumber,
-    to: twilioToNumber,
-    body: message_body
-  });
+  if (message_type === 'template') {
+    // Template message
+    if (!messageData.template_name) {
+      throw new Error('Template name is required for template messages');
+    }
+    const contentVariables = messageData.template_components ? JSON.stringify(messageData.template_components) : undefined;
+
+    twilioPayload = new URLSearchParams({
+      From: twilioFromNumber,
+      To: twilioToNumber,
+      ContentSid: messageData.template_name,
+      ...(contentVariables && { ContentVariables: contentVariables }),
+    });
+
+    console.log('Sending Twilio WhatsApp template message:', {
+      from: twilioFromNumber,
+      to: twilioToNumber,
+      contentSid: messageData.template_name,
+      contentVariables: contentVariables,
+    });
+  } else {
+    // Text message
+    twilioPayload = new URLSearchParams({
+      From: twilioFromNumber,
+      To: twilioToNumber,
+      Body: message_body
+    });
+
+    console.log('Sending Twilio WhatsApp text message:', {
+      from: twilioFromNumber,
+      to: twilioToNumber,
+      body: message_body
+    });
+  }
 
   let twilioResponse;
   let twilioResult;
