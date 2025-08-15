@@ -285,7 +285,7 @@ const handler = async (req: Request): Promise<Response> => {
                 recipient_phone: church.phone,
                 message_body: template.content,
                 message_type: 'text',
-                provider: 'evolution',
+                provider: 'twilio',
                 templateId: template.id,
                 campaignId: campaign.id,
                 churchId: church.id

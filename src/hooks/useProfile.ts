@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { useSecurityLogging } from '@/hooks/useSecurityLogging';
 
 export type UserStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 export type AppRole = 'admin' | 'user';
@@ -93,6 +94,7 @@ export const useAllProfiles = () => {
 
 export const useUpdateUserStatus = () => {
   const queryClient = useQueryClient();
+  const { logAdminAction } = useSecurityLogging();
   
   return useMutation({
     mutationFn: async ({ 
@@ -117,6 +119,14 @@ export const useUpdateUserStatus = () => {
         .single();
       
       if (error) throw error;
+      
+      // Log admin action for security monitoring
+      logAdminAction(`user_status_change_${status}`, userId, {
+        old_status: 'unknown', // Could be enhanced to fetch previous status
+        new_status: status,
+        rejection_reason: rejectionReason,
+      });
+      
       return data;
     },
     onSuccess: () => {

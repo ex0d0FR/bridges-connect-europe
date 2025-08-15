@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAllProfiles, useUpdateUserStatus, useIsAdmin } from "@/hooks/useProfile";
+import { useSecurityLogging } from "@/hooks/useSecurityLogging";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ const UserManagement = () => {
   const isAdmin = useIsAdmin();
   const { data: profiles, isLoading } = useAllProfiles();
   const updateUserStatus = useUpdateUserStatus();
+  const { logDataAccess, logAdminAction } = useSecurityLogging();
   
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | 'suspend' | null>(null);
@@ -45,6 +47,14 @@ const UserManagement = () => {
 
   const confirmAction = async () => {
     if (!selectedUser || !actionType) return;
+    
+    // Log admin action for security monitoring
+    logAdminAction(`user_management_${actionType}`, selectedUser.id, {
+      user_email: selectedUser.email,
+      previous_status: selectedUser.status,
+      new_status: actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'suspended',
+      rejection_reason: actionType === 'reject' ? rejectionReason : undefined,
+    });
     
     await updateUserStatus.mutateAsync({
       userId: selectedUser.id,
