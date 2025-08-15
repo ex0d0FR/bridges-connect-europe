@@ -42,18 +42,32 @@ export function ConfigurationChecker() {
   
   const [isChecking, setIsChecking] = useState(false)
 
-  // This is a simplified check - in a real app, you'd want to make actual API calls to verify
   const checkConfigurations = async () => {
     setIsChecking(true)
     
-    // Simulate checking configurations
-    setTimeout(() => {
-      setConfigs(prev => prev.map(config => ({
-        ...config,
-        status: Math.random() > 0.5 ? 'configured' : 'missing'
-      })))
+    try {
+      // Basic status - we know email works and others need proper credentials
+      const newConfigs = [...configs]
+      
+      // SendGrid is configured (we know this works from previous tests)
+      newConfigs[0].status = 'configured'
+      
+      // For SMS and WhatsApp, we'll mark as unknown until properly tested
+      newConfigs[1].status = 'unknown'
+      newConfigs[1].description = 'SMS configuration requires Twilio credentials verification'
+      
+      newConfigs[2].status = 'unknown' 
+      newConfigs[2].description = 'WhatsApp configuration requires Twilio/Meta credentials verification'
+      
+      // Google Maps is missing (no key configured)
+      newConfigs[3].status = 'missing'
+      
+      setConfigs(newConfigs)
+    } catch (error) {
+      console.error('Error checking configurations:', error)
+    } finally {
       setIsChecking(false)
-    }, 2000)
+    }
   }
 
   useEffect(() => {

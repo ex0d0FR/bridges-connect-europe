@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { MessageTestCenter } from "@/components/MessageTestCenter"
 import { ConfigurationChecker } from "@/components/ConfigurationChecker"
+import { SMSConfigTest } from "@/components/SMSConfigTest"
 import { useForm } from "react-hook-form"
 import { useSettings } from "@/hooks/useSettings"
 import { useEffect } from "react"
@@ -316,6 +317,9 @@ export default function Settings() {
 
           {/* WhatsApp Configuration Test */}
           <WhatsAppConfigTest />
+          
+          {/* SMS Configuration Test */}
+          <SMSConfigTest />
         </TabsContent>
       </Tabs>
     </div>

@@ -9,6 +9,7 @@ const corsHeaders = {
 interface SMSRequest {
   to: string;
   content: string;
+  message?: string; // Alternative field name for compatibility
   templateId?: string;
   campaignId?: string;
   churchId?: string;
@@ -36,9 +37,23 @@ const handler = async (req: Request): Promise<Response> => {
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
     const twilioPhoneNumber = Deno.env.get('TWILIO_PHONE_NUMBER');
+    const twilioMessagingServiceSid = Deno.env.get('TWILIO_MESSAGING_SERVICE_SID');
     
-    if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
-      throw new Error('Twilio configuration missing');
+    console.log('SMS Configuration check:', {
+      hasTwilioAccountSid: !!twilioAccountSid,
+      hasTwilioAuthToken: !!twilioAuthToken,
+      hasTwilioPhoneNumber: !!twilioPhoneNumber,
+      hasTwilioMessagingServiceSid: !!twilioMessagingServiceSid,
+      recipient: to,
+      isTest: !!isTest
+    });
+    
+    if (!twilioAccountSid || !twilioAuthToken) {
+      throw new Error('Twilio credentials missing: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are required');
+    }
+    
+    if (!twilioPhoneNumber && !twilioMessagingServiceSid) {
+      throw new Error('Twilio sender configuration missing: Either TWILIO_PHONE_NUMBER or TWILIO_MESSAGING_SERVICE_SID is required');
     }
 
     // Get auth header for Supabase
@@ -73,12 +88,23 @@ const handler = async (req: Request): Promise<Response> => {
     const twilioAuth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
     
     const formData = new URLSearchParams();
-    formData.append('From', twilioPhoneNumber);
+    
+    // Use Messaging Service SID if available, otherwise use phone number
+    if (twilioMessagingServiceSid) {
+      formData.append('MessagingServiceSid', twilioMessagingServiceSid);
+      console.log('Using Twilio Messaging Service SID');
+    } else {
+      formData.append('From', twilioPhoneNumber);
+      console.log('Using Twilio phone number');
+    }
+    
     // Normalize destination number to E.164 (+countrycode...)
     const cleanedTo = to.replace(/[^\d+]/g, '').trim();
     const formattedTo = cleanedTo.startsWith('+') ? cleanedTo : `+${cleanedTo}`;
     formData.append('To', formattedTo);
     formData.append('Body', formattedContent);
+    
+    console.log(`Sending SMS to ${formattedTo}`);
 
     const twilioResponse = await fetch(twilioUrl, {
       method: 'POST',
@@ -91,7 +117,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (!twilioResponse.ok) {
       const errorText = await twilioResponse.text();
-      throw new Error(`Twilio error: ${errorText}`);
+      console.error('Twilio API error response:', errorText);
+      throw new Error(`Twilio error (${twilioResponse.status}): ${errorText}`);
     }
 
     const twilioData = await twilioResponse.json();

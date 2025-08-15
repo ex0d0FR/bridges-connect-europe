@@ -125,7 +125,18 @@ export function TestMessageDialog({ open, onOpenChange, template }: TestMessageD
 
       if (error) {
         console.error('Test message error:', error)
-        throw new Error(`Function error: ${error.message || 'Unknown error'}`)
+        // Enhanced error handling for better user feedback
+        let errorMessage = error.message || 'Unknown error'
+        
+        if (errorMessage.includes('Twilio configuration missing')) {
+          errorMessage = 'SMS service not configured. Please check your Twilio settings in the Configuration section.'
+        } else if (errorMessage.includes('Twilio credentials')) {
+          errorMessage = 'SMS credentials are missing or invalid. Please verify your Twilio account settings.'
+        } else if (errorMessage.includes('Twilio error')) {
+          errorMessage = `SMS service error: ${errorMessage.replace('Twilio error:', '').trim()}`
+        }
+        
+        throw new Error(errorMessage)
       }
 
       if (data?.error) {
