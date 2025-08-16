@@ -77,6 +77,26 @@ export const ChurchEmailScrapingDialog: React.FC<ChurchEmailScrapingDialogProps>
     });
   };
 
+  const handleSelectAll = () => {
+    if (!scrapingProgress) return;
+    
+    const newSelectedUpdates = new Map<string, EmailUpdate>();
+    scrapingProgress.results.forEach(result => {
+      if (result.foundEmails.length > 0) {
+        newSelectedUpdates.set(result.churchId, {
+          churchId: result.churchId,
+          selectedEmail: result.foundEmails[0],
+          updateNotes: true
+        });
+      }
+    });
+    setSelectedUpdates(newSelectedUpdates);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedUpdates(new Map());
+  };
+
   const handleApplyUpdates = () => {
     const updates = Array.from(selectedUpdates.values());
     if (updates.length > 0) {
@@ -208,12 +228,30 @@ export const ChurchEmailScrapingDialog: React.FC<ChurchEmailScrapingDialogProps>
             </CardContent>
           </Card>
 
-          {/* Results */}
-          {scrapingProgress && scrapingProgress.results.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Scraping Results</CardTitle>
-              </CardHeader>
+           {/* Results */}
+           {scrapingProgress && scrapingProgress.results.length > 0 && (
+             <Card>
+               <CardHeader className="flex flex-row items-center justify-between">
+                 <CardTitle className="text-lg">Scraping Results</CardTitle>
+                 <div className="flex gap-2">
+                   <Button 
+                     variant="outline" 
+                     size="sm"
+                     onClick={handleSelectAll}
+                     disabled={scrapingProgress.results.filter(r => r.foundEmails.length > 0).length === 0}
+                   >
+                     Select All
+                   </Button>
+                   <Button 
+                     variant="outline" 
+                     size="sm"
+                     onClick={handleDeselectAll}
+                     disabled={selectedUpdates.size === 0}
+                   >
+                     Deselect All
+                   </Button>
+                 </div>
+               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-96">
                   <div className="space-y-3">
