@@ -309,14 +309,20 @@ export default function Settings() {
                           <Label>Twilio Credentials</Label>
                           <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure messaging.</p>
                           <div className="flex gap-2 flex-wrap">
-                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
-                              Configure Account SID
+                            <Button asChild variant="outline">
+                              <a href="https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions" target="_blank" rel="noreferrer noopener">
+                                Configure Account SID
+                              </a>
                             </Button>
-                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
-                              Configure Auth Token
+                            <Button asChild variant="outline">
+                              <a href="https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions" target="_blank" rel="noreferrer noopener">
+                                Configure Auth Token
+                              </a>
                             </Button>
-                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
-                              Configure Messaging Service SID
+                            <Button asChild variant="outline">
+                              <a href="https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions" target="_blank" rel="noreferrer noopener">
+                                Configure Messaging Service SID
+                              </a>
                             </Button>
                           </div>
                         </div>
