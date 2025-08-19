@@ -304,23 +304,23 @@ export default function Settings() {
                     
                     <Separator />
                     
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Twilio Credentials</Label>
-                        <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure messaging.</p>
-                        <div className="flex gap-2 flex-wrap">
-                          <Button variant="outline" type="button">
-                            Configure Account SID
-                          </Button>
-                          <Button variant="outline" type="button">
-                            Configure Auth Token
-                          </Button>
-                          <Button variant="outline" type="button">
-                            Configure Messaging Service SID
-                          </Button>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Twilio Credentials</Label>
+                          <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure messaging.</p>
+                          <div className="flex gap-2 flex-wrap">
+                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
+                              Configure Account SID
+                            </Button>
+                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
+                              Configure Auth Token
+                            </Button>
+                            <Button variant="outline" type="button" onClick={() => window.open('https://supabase.com/dashboard/project/ovoldtknfdyvyypadnmf/settings/functions', '_blank')}>
+                              Configure Messaging Service SID
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     
                     <Separator />
 
