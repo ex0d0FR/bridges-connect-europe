@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_metrics: {
+        Row: {
+          campaign_id: string | null
+          church_id: string | null
+          contact_id: string | null
+          dimensions: Json | null
+          id: string
+          metric_name: string
+          metric_type: string
+          metric_value: number | null
+          recorded_at: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          church_id?: string | null
+          contact_id?: string | null
+          dimensions?: Json | null
+          id?: string
+          metric_name: string
+          metric_type: string
+          metric_value?: number | null
+          recorded_at?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          church_id?: string | null
+          contact_id?: string | null
+          dimensions?: Json | null
+          id?: string
+          metric_name?: string
+          metric_type?: string
+          metric_value?: number | null
+          recorded_at?: string | null
+        }
+        Relationships: []
+      }
       campaign_churches: {
         Row: {
           added_at: string
@@ -49,6 +85,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaign_tasks: {
+        Row: {
+          assigned_to: string | null
+          campaign_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          priority: string | null
+          progress: number | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          progress?: number | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          priority?: string | null
+          progress?: number | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       campaigns: {
         Row: {
@@ -155,6 +239,342 @@ export type Database = {
           updated_at?: string
           verified?: boolean | null
           website?: string | null
+        }
+        Relationships: []
+      }
+      communication_schedules: {
+        Row: {
+          campaign_id: string | null
+          created_at: string | null
+          created_by: string | null
+          failed_count: number | null
+          id: string
+          scheduled_for: string | null
+          sent_count: number | null
+          status: string | null
+          target_contacts: string[] | null
+          template_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          failed_count?: number | null
+          id?: string
+          scheduled_for?: string | null
+          sent_count?: number | null
+          status?: string | null
+          target_contacts?: string[] | null
+          template_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          failed_count?: number | null
+          id?: string
+          scheduled_for?: string | null
+          sent_count?: number | null
+          status?: string | null
+          target_contacts?: string[] | null
+          template_id?: string | null
+        }
+        Relationships: []
+      }
+      contact_interactions: {
+        Row: {
+          contact_id: string | null
+          content: string | null
+          created_at: string | null
+          created_by: string | null
+          follow_up_date: string | null
+          follow_up_required: boolean | null
+          id: string
+          interaction_date: string | null
+          interaction_type: string | null
+          metadata: Json | null
+          outcome: string | null
+          subject: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          content?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          follow_up_date?: string | null
+          follow_up_required?: boolean | null
+          id?: string
+          interaction_date?: string | null
+          interaction_type?: string | null
+          metadata?: Json | null
+          outcome?: string | null
+          subject?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          content?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          follow_up_date?: string | null
+          follow_up_required?: boolean | null
+          id?: string
+          interaction_date?: string | null
+          interaction_type?: string | null
+          metadata?: Json | null
+          outcome?: string | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
+      contact_scraping_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          results_count: number | null
+          search_query: string
+          started_at: string | null
+          status: string | null
+          target_countries: string[] | null
+          target_denominations: string[] | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          results_count?: number | null
+          search_query: string
+          started_at?: string | null
+          status?: string | null
+          target_countries?: string[] | null
+          target_denominations?: string[] | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          results_count?: number | null
+          search_query?: string
+          started_at?: string | null
+          status?: string | null
+          target_countries?: string[] | null
+          target_denominations?: string[] | null
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          church_id: string | null
+          contact_status: string | null
+          created_at: string | null
+          created_by: string | null
+          department: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          language: string | null
+          last_contact_date: string | null
+          last_name: string | null
+          mobile: string | null
+          next_follow_up: string | null
+          notes: string | null
+          phone: string | null
+          position: string | null
+          social_media: Json | null
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          church_id?: string | null
+          contact_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          language?: string | null
+          last_contact_date?: string | null
+          last_name?: string | null
+          mobile?: string | null
+          next_follow_up?: string | null
+          notes?: string | null
+          phone?: string | null
+          position?: string | null
+          social_media?: Json | null
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          church_id?: string | null
+          contact_status?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          department?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          language?: string | null
+          last_contact_date?: string | null
+          last_name?: string | null
+          mobile?: string | null
+          next_follow_up?: string | null
+          notes?: string | null
+          phone?: string | null
+          position?: string | null
+          social_media?: Json | null
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      event_attendees: {
+        Row: {
+          attended: boolean | null
+          church_id: string | null
+          contact_id: string | null
+          created_at: string | null
+          event_id: string | null
+          id: string
+          notes: string | null
+          registered_at: string | null
+          status: string | null
+        }
+        Insert: {
+          attended?: boolean | null
+          church_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          registered_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          attended?: boolean | null
+          church_id?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          notes?: string | null
+          registered_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          address: string | null
+          campaign_id: string | null
+          city: string | null
+          country: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          end_date: string | null
+          event_type: string | null
+          id: string
+          is_online: boolean | null
+          location: string | null
+          max_attendees: number | null
+          meeting_url: string | null
+          registration_required: boolean | null
+          start_date: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          campaign_id?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          event_type?: string | null
+          id?: string
+          is_online?: boolean | null
+          location?: string | null
+          max_attendees?: number | null
+          meeting_url?: string | null
+          registration_required?: boolean | null
+          start_date?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          campaign_id?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          end_date?: string | null
+          event_type?: string | null
+          id?: string
+          is_online?: boolean | null
+          location?: string | null
+          max_attendees?: number | null
+          meeting_url?: string | null
+          registration_required?: boolean | null
+          start_date?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      gdpr_consents: {
+        Row: {
+          church_id: string | null
+          consent_date: string | null
+          consent_type: string
+          consented: boolean | null
+          contact_id: string | null
+          created_at: string | null
+          id: string
+          ip_address: unknown | null
+          legal_basis: string | null
+          user_agent: string | null
+          withdrawal_date: string | null
+        }
+        Insert: {
+          church_id?: string | null
+          consent_date?: string | null
+          consent_type: string
+          consented?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          legal_basis?: string | null
+          user_agent?: string | null
+          withdrawal_date?: string | null
+        }
+        Update: {
+          church_id?: string | null
+          consent_date?: string | null
+          consent_type?: string
+          consented?: boolean | null
+          contact_id?: string | null
+          created_at?: string | null
+          id?: string
+          ip_address?: unknown | null
+          legal_basis?: string | null
+          user_agent?: string | null
+          withdrawal_date?: string | null
         }
         Relationships: []
       }
@@ -294,9 +714,14 @@ export type Database = {
           primary_contact_email: string | null
           sender_email: string | null
           sender_name: string | null
+          twilio_account_name: string | null
+          twilio_friendly_name: string | null
+          twilio_phone_number: string | null
           updated_at: string
           user_id: string
+          whatsapp_business_name: string | null
           whatsapp_phone_number: string | null
+          whatsapp_phone_numbers: string[] | null
         }
         Insert: {
           conference_date?: string | null
@@ -306,9 +731,14 @@ export type Database = {
           primary_contact_email?: string | null
           sender_email?: string | null
           sender_name?: string | null
+          twilio_account_name?: string | null
+          twilio_friendly_name?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_business_name?: string | null
           whatsapp_phone_number?: string | null
+          whatsapp_phone_numbers?: string[] | null
         }
         Update: {
           conference_date?: string | null
@@ -318,9 +748,62 @@ export type Database = {
           primary_contact_email?: string | null
           sender_email?: string | null
           sender_name?: string | null
+          twilio_account_name?: string | null
+          twilio_friendly_name?: string | null
+          twilio_phone_number?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_business_name?: string | null
           whatsapp_phone_number?: string | null
+          whatsapp_phone_numbers?: string[] | null
+        }
+        Relationships: []
+      }
+      social_media_posts: {
+        Row: {
+          campaign_id: string | null
+          content: string
+          created_at: string | null
+          created_by: string | null
+          engagement_metrics: Json | null
+          external_post_id: string | null
+          id: string
+          media_urls: string[] | null
+          platform: string
+          posted_at: string | null
+          scheduled_for: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          engagement_metrics?: Json | null
+          external_post_id?: string | null
+          id?: string
+          media_urls?: string[] | null
+          platform: string
+          posted_at?: string | null
+          scheduled_for?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          engagement_metrics?: Json | null
+          external_post_id?: string | null
+          id?: string
+          media_urls?: string[] | null
+          platform?: string
+          posted_at?: string | null
+          scheduled_for?: string | null
+          status?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
