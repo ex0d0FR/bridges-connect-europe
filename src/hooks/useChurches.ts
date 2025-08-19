@@ -41,9 +41,15 @@ export interface CreateChurchData {
   notes?: string;
 }
 
-export const useChurches = (searchTerm?: string) => {
+export interface ChurchFilters {
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  hasWebsite?: boolean;
+}
+
+export const useChurches = (searchTerm?: string, filters?: ChurchFilters) => {
   return useQuery({
-    queryKey: ['churches', searchTerm],
+    queryKey: ['churches', searchTerm, filters],
     queryFn: async () => {
       let query = supabase
         .from('churches')
@@ -52,6 +58,19 @@ export const useChurches = (searchTerm?: string) => {
 
       if (searchTerm) {
         query = query.or(`name.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%,contact_name.ilike.%${searchTerm}%,country.ilike.%${searchTerm}%,address.ilike.%${searchTerm}%,denomination.ilike.%${searchTerm}%`);
+      }
+
+      // Apply filters
+      if (filters?.hasEmail) {
+        query = query.not('email', 'is', null).neq('email', '');
+      }
+      
+      if (filters?.hasPhone) {
+        query = query.not('phone', 'is', null).neq('phone', '');
+      }
+      
+      if (filters?.hasWebsite) {
+        query = query.not('website', 'is', null).neq('website', '');
       }
 
       const { data, error } = await query;

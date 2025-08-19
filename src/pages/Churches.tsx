@@ -30,16 +30,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Plus, Search, Filter, Upload, Download, Mail, Phone, Globe, Trash2, Edit, ChevronDown, FileText } from "lucide-react"
-import { useChurches, useDeleteChurch } from "@/hooks/useChurches"
+import { useChurches, useDeleteChurch, ChurchFilters } from "@/hooks/useChurches"
 import { useChurchImportExport } from "@/hooks/useChurchImportExport"
 import AddChurchDialog from "@/components/AddChurchDialog"
 import EditChurchDialog from "@/components/EditChurchDialog"
 import { ChurchEmailScrapingDialog } from "@/components/ChurchEmailScrapingDialog"
+import { ChurchFiltersDialog } from "@/components/ChurchFiltersDialog"
 import { formatDistanceToNow } from "date-fns"
 
 export default function Churches() {
   const [searchTerm, setSearchTerm] = useState("")
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
+  const [filters, setFilters] = useState<ChurchFilters>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   // Debounce search term
@@ -50,7 +52,7 @@ export default function Churches() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const { data: churches, isLoading, error } = useChurches(debouncedSearchTerm)
+  const { data: churches, isLoading, error } = useChurches(debouncedSearchTerm, filters)
   const deleteChurch = useDeleteChurch()
   const { exportToCSV, importFromCSV, downloadTemplate } = useChurchImportExport()
 
@@ -137,10 +139,10 @@ export default function Churches() {
                 className="pl-10"
               />
             </div>
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
-            </Button>
+            <ChurchFiltersDialog 
+              filters={filters}
+              onFiltersChange={setFilters}
+            />
           </div>
         </CardContent>
       </Card>
