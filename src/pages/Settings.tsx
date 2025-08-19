@@ -365,6 +365,31 @@ export default function Settings() {
                 </Form>
               </CardContent>
             </Card>
+
+            {/* Configuration Testing Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Twilio Configuration Testing</CardTitle>
+                <CardDescription>
+                  Quickly verify your Twilio WhatsApp and SMS settings right here
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* WhatsApp Configuration Test */}
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">WhatsApp Configuration</h4>
+                  <WhatsAppConfigTest />
+                </div>
+                
+                <Separator />
+                
+                {/* SMS Configuration Test */}
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">SMS Configuration</h4>
+                  <SMSConfigTest />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
