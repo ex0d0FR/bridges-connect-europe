@@ -34,7 +34,7 @@ export function useSettings() {
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as Settings | null;
     },
     enabled: !!user?.id,
   });

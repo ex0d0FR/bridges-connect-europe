@@ -63,10 +63,10 @@ export default function Settings() {
       
       messagingForm.reset({
         whatsapp_phone_number: settings.whatsapp_phone_number || '',
-        twilio_account_name: (settings as any).twilio_account_name || '',
-        twilio_phone_number: (settings as any).twilio_phone_number || '',
-        twilio_friendly_name: (settings as any).twilio_friendly_name || '',
-        whatsapp_business_name: (settings as any).whatsapp_business_name || '',
+        twilio_account_name: settings.twilio_account_name || '',
+        twilio_phone_number: settings.twilio_phone_number || '',
+        twilio_friendly_name: settings.twilio_friendly_name || '',
+        whatsapp_business_name: settings.whatsapp_business_name || '',
       });
       
       integrationsForm.reset({});
@@ -245,7 +245,7 @@ export default function Settings() {
         <TabsContent value="messaging">
           <div className="space-y-6">
             {/* Twilio Account Information */}
-            <TwilioAccountInfo settings={settings as any} />
+            <TwilioAccountInfo settings={settings} />
             
             {/* Twilio Configuration Card */}
             <Card>
