@@ -11,6 +11,11 @@ export interface Settings {
   sender_name?: string;
   sender_email?: string;
   whatsapp_phone_number?: string;
+  twilio_account_name?: string;
+  twilio_phone_number?: string;
+  twilio_friendly_name?: string;
+  whatsapp_business_name?: string;
+  whatsapp_phone_numbers?: string[];
 }
 
 export function useSettings() {

@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { MessageTestCenter } from "@/components/MessageTestCenter"
 import { ConfigurationChecker } from "@/components/ConfigurationChecker"
 import { SMSConfigTest } from "@/components/SMSConfigTest"
+import { TwilioAccountInfo } from "@/components/TwilioAccountInfo"
 import { useForm } from "react-hook-form"
 import { useSettings } from "@/hooks/useSettings"
 import { useEffect } from "react"
@@ -35,6 +36,10 @@ export default function Settings() {
   const messagingForm = useForm({
     defaultValues: {
       whatsapp_phone_number: '',
+      twilio_account_name: '',
+      twilio_phone_number: '',
+      twilio_friendly_name: '',
+      whatsapp_business_name: '',
     },
   });
 
@@ -58,6 +63,10 @@ export default function Settings() {
       
       messagingForm.reset({
         whatsapp_phone_number: settings.whatsapp_phone_number || '',
+        twilio_account_name: settings.twilio_account_name || '',
+        twilio_phone_number: settings.twilio_phone_number || '',
+        twilio_friendly_name: settings.twilio_friendly_name || '',
+        whatsapp_business_name: settings.whatsapp_business_name || '',
       });
       
       integrationsForm.reset({});
@@ -234,92 +243,182 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="messaging">
-          <Card>
-            <CardHeader>
-              <CardTitle>SMS & WhatsApp Configuration</CardTitle>
-              <CardDescription>
-                Set up messaging services for fallback communication
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Form {...messagingForm}>
-                <form onSubmit={messagingForm.handleSubmit(onMessagingSubmit)} className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Twilio Configuration</Label>
-                      <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure SMS sending.</p>
-                      <div className="flex gap-2">
-                        <Button variant="outline" type="button">
-                          Configure Twilio Account SID
-                        </Button>
-                        <Button variant="outline" type="button">
-                          Configure Twilio Auth Token
-                        </Button>
+          <div className="space-y-6">
+            {/* Twilio Account Information */}
+            <TwilioAccountInfo settings={settings} />
+            
+            {/* Twilio Configuration Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Twilio Configuration</CardTitle>
+                <CardDescription>
+                  Configure your Twilio account information and messaging settings
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Form {...messagingForm}>
+                  <form onSubmit={messagingForm.handleSubmit(onMessagingSubmit)} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={messagingForm.control}
+                        name="twilio_account_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Account Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Bridges" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={messagingForm.control}
+                        name="twilio_friendly_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Friendly Name</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Bridges Paris" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={messagingForm.control}
+                      name="twilio_phone_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Twilio Phone Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+19287676457" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <Separator />
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Twilio Credentials</Label>
+                        <p className="text-sm text-muted-foreground">Configure your Twilio credentials as Supabase secrets for secure messaging.</p>
+                        <div className="flex gap-2 flex-wrap">
+                          <Button variant="outline" type="button">
+                            Configure Account SID
+                          </Button>
+                          <Button variant="outline" type="button">
+                            Configure Auth Token
+                          </Button>
+                          <Button variant="outline" type="button">
+                            Configure Messaging Service SID
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <Separator />
+                    
+                    <Separator />
 
-                  <FormField
-                    control={messagingForm.control}
-                    name="whatsapp_phone_number"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>WhatsApp Business Number</FormLabel>
-                        <FormControl>
-                          <Input placeholder="+33 1 23 45 67 89" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={messagingForm.control}
+                      name="whatsapp_business_name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Business Display Name</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Bridges - Puentes - Paris Bridges 2025" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                  <Button type="submit" disabled={isSaving}>
-                    {isSaving ? 'Saving...' : 'Save Messaging Settings'}
-                  </Button>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
+                    <FormField
+                      control={messagingForm.control}
+                      name="whatsapp_phone_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>WhatsApp Business Number</FormLabel>
+                          <FormControl>
+                            <Input placeholder="+15557932346" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <Button type="submit" disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Save Messaging Settings'}
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="integrations">
-          <Card>
-            <CardHeader>
-              <CardTitle>External Integrations</CardTitle>
-              <CardDescription>
-                Configure connections to external services using secure Supabase secrets
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Google Maps API Key</Label>
-                  <p className="text-sm text-muted-foreground">Configure your Google Maps API key as a Supabase secret for church discovery features.</p>
-                  <Button variant="outline" type="button">
-                    Configure Google Maps Secret
-                  </Button>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>External Integrations</CardTitle>
+                <CardDescription>
+                  Configure connections to external services using secure Supabase secrets
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Google Maps API Key</Label>
+                    <p className="text-sm text-muted-foreground">Configure your Google Maps API key as a Supabase secret for church discovery features.</p>
+                    <Button variant="outline" type="button">
+                      Configure Google Maps Secret
+                    </Button>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <Label>Apify API Token</Label>
+                    <p className="text-sm text-muted-foreground">Configure your Apify API token as a Supabase secret for web scraping church directories.</p>
+                    <Button variant="outline" type="button">
+                      Configure Apify Secret
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Configuration Testing Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration Testing</CardTitle>
+                <CardDescription>
+                  Test your messaging services and external integrations
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* WhatsApp Configuration Test */}
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">WhatsApp Configuration</h4>
+                  <WhatsAppConfigTest />
                 </div>
                 
                 <Separator />
                 
-                <div className="space-y-2">
-                  <Label>Apify API Token</Label>
-                  <p className="text-sm text-muted-foreground">Configure your Apify API token as a Supabase secret for web scraping church directories.</p>
-                  <Button variant="outline" type="button">
-                    Configure Apify Secret
-                  </Button>
+                {/* SMS Configuration Test */}
+                <div>
+                  <h4 className="text-lg font-semibold mb-4">SMS Configuration</h4>
+                  <SMSConfigTest />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* WhatsApp Configuration Test */}
-          <WhatsAppConfigTest />
-          
-          {/* SMS Configuration Test */}
-          <SMSConfigTest />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
