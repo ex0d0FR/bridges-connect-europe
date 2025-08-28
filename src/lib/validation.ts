@@ -1,5 +1,50 @@
 // Enhanced input validation and sanitization utilities with security hardening
 
+// Enhanced email validation with additional security checks
+export const validateEmailSecurity = (email: string): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  
+  if (!email || typeof email !== 'string') {
+    errors.push('Email is required');
+    return { isValid: false, errors };
+  }
+  
+  const trimmedEmail = email.trim().toLowerCase();
+  
+  // Basic format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(trimmedEmail)) {
+    errors.push('Invalid email format');
+  }
+  
+  // Length validation (RFC limit)
+  if (trimmedEmail.length > 254) {
+    errors.push('Email address too long');
+  }
+  
+  // Check for suspicious patterns
+  if (trimmedEmail.includes('..')) {
+    errors.push('Invalid email format: consecutive dots not allowed');
+  }
+  
+  // Check for potential injection attempts
+  if (/[<>'"\\]/.test(trimmedEmail)) {
+    errors.push('Email contains invalid characters');
+  }
+  
+  // Check for common disposable email patterns
+  const disposableDomains = ['tempmail', 'guerrillamail', '10minutemail', 'mailinator'];
+  const domain = trimmedEmail.split('@')[1];
+  if (domain && disposableDomains.some(d => domain.includes(d))) {
+    errors.push('Disposable email addresses are not allowed');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+};
+
 export const validateEmail = (email: string): boolean => {
   if (!email || typeof email !== 'string') return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

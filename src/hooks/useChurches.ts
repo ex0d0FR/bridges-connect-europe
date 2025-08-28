@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useSecurityAuditing } from '@/hooks/useSecurityAuditing';
+import { sanitizeText } from '@/lib/validation';
 
 export interface Church {
   id: string;

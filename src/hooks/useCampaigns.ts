@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useSecurityAuditing } from '@/hooks/useSecurityAuditing';
 
 export interface Campaign {
   id: string;
@@ -22,11 +23,16 @@ export interface CampaignWithStats extends Campaign {
 }
 
 export const useCampaigns = () => {
+  const { logDataAccess } = useSecurityAuditing();
+
   return useQuery({
     queryKey: ['campaigns'],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+
+      // Log data access for audit trail
+      logDataAccess('campaigns', 'read');
 
       const { data, error } = await supabase
         .from('campaigns')

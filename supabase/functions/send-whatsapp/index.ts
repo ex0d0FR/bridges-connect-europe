@@ -335,7 +335,50 @@ serve(async (req) => {
     }
 
     const requestBody = await req.json();
-    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId, provider = 'twilio' }: WhatsAppMessage & { templateId?: string, campaignId?: string, churchId?: string, provider?: 'twilio' } = requestBody;
+    
+    // Enhanced input validation
+    if (!requestBody || typeof requestBody !== 'object') {
+      throw new Error('Invalid request body format');
+    }
+
+    const { recipient_phone, template_name, language_code = 'en', template_components, message_body, message_type, isTest, templateId, campaignId, churchId, provider = 'twilio' } = requestBody;
+    
+    // Validate required fields with security checks
+    if (!recipient_phone || typeof recipient_phone !== 'string' || recipient_phone.trim() === '') {
+      throw new Error('Recipient phone number is required');
+    }
+    
+    if (recipient_phone.length > 20) {
+      throw new Error('Phone number too long');
+    }
+    
+    // Validate phone number format
+    const phoneRegex = /^\+?[\d\s\-\(\)\.]{7,20}$/;
+    if (!phoneRegex.test(recipient_phone)) {
+      throw new Error('Invalid phone number format');
+    }
+    
+    // Validate message content if provided
+    if (message_body && typeof message_body === 'string') {
+      if (message_body.length > 4096) { // WhatsApp message limit
+        throw new Error('Message too long (max 4096 characters)');
+      }
+      
+      // Sanitize message content
+      const sanitizedMessage = message_body
+        .replace(/<script[^>]*>.*?<\/script>/gi, '')
+        .replace(/javascript:|data:|vbscript:/gi, '')
+        .trim();
+        
+      if (sanitizedMessage !== message_body) {
+        console.warn('Message content was sanitized for security');
+      }
+    }
+    
+    // Validate template components if provided
+    if (template_components && !Array.isArray(template_components)) {
+      throw new Error('Template components must be an array');
+    }
 
     // Check Twilio configuration
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');

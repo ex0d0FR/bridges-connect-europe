@@ -76,7 +76,55 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, content, templateId, campaignId, churchId, isTest }: EmailRequest = await req.json();
+    const requestBody = await req.json();
+    
+    // Enhanced input validation and sanitization
+    if (!requestBody || typeof requestBody !== 'object') {
+      throw new Error('Invalid request body');
+    }
+
+    const { to, subject, content, templateId, campaignId, churchId, isTest } = requestBody;
+    
+    // Validate required fields with length limits
+    if (!to || typeof to !== 'string' || to.trim().length === 0) {
+      throw new Error('Recipient email is required');
+    }
+    
+    if (to.length > 254) {
+      throw new Error('Recipient email too long');
+    }
+    
+    if (!subject || typeof subject !== 'string' || subject.trim().length === 0) {
+      throw new Error('Subject is required');
+    }
+    
+    if (subject.length > 998) { // RFC 2822 limit
+      throw new Error('Subject too long (max 998 characters)');
+    }
+    
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      throw new Error('Content is required');
+    }
+    
+    if (content.length > 100000) { // 100KB limit
+      throw new Error('Content too long (max 100KB)');
+    }
+
+    // Sanitize input fields
+    const sanitizedTo = to.trim().toLowerCase();
+    const sanitizedSubject = subject.trim().replace(/<script[^>]*>.*?<\/script>/gi, ''); // Remove script tags
+    const sanitizedContent = content.trim();
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedTo)) {
+      throw new Error('Invalid email format');
+    }
+
+    // Check for suspicious patterns in subject
+    if (/<script|javascript:|data:|vbscript:/i.test(sanitizedSubject)) {
+      throw new Error('Subject contains suspicious content');
+    }
     
     const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY');
     if (!sendgridApiKey) {
@@ -110,14 +158,14 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Authentication failed');
     }
 
-    // Format content properly for email
-    const formattedContent = formatEmailContent(content);
+    // Format content properly for email with sanitized input
+    const formattedContent = formatEmailContent(sanitizedContent);
 
     // Send email via SendGrid
     const emailData = {
       personalizations: [{
-        to: [{ email: to }],
-        subject: subject
+        to: [{ email: sanitizedTo }],
+        subject: sanitizedSubject
       }],
       from: { email: "info@puentesparis2025.net", name: "Missionary Bridges" },
       content: [{
@@ -160,9 +208,9 @@ const handler = async (req: Request): Promise<Response> => {
             church_id: churchId,
             campaign_id: campaignId,
             template_id: templateId,
-            subject: subject,
+            subject: sanitizedSubject,
             content: formattedContent,
-            recipient_email: to,
+            recipient_email: sanitizedTo,
             status: 'sent',
             external_id: messageId,
             sent_at: new Date().toISOString(),
@@ -181,7 +229,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.log('Test message - skipping database logging');
     }
 
-    console.log(`Email sent successfully to ${to}`);
+    console.log(`Email sent successfully to ${sanitizedTo}`);
 
     return new Response(JSON.stringify({ 
       success: true, 

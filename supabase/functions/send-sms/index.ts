@@ -22,17 +22,53 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, content, message, templateId, campaignId, churchId, isTest }: SMSRequest = await req.json();
+    const requestBody = await req.json();
+    
+    // Enhanced input validation
+    if (!requestBody || typeof requestBody !== 'object') {
+      throw new Error('Invalid request body');
+    }
+
+    const { to, content, message, templateId, campaignId, churchId, isTest } = requestBody;
     
     // Accept both 'content' and 'message' fields for compatibility
     const messageContent = content || message;
     
-    // Validate and format content
-    if (!messageContent || messageContent.trim() === '') {
+    // Validate and format content with enhanced security
+    if (!messageContent || typeof messageContent !== 'string' || messageContent.trim() === '') {
       throw new Error('Message content is required');
     }
     
-    const formattedContent = messageContent.replace(/undefined/g, '').trim();
+    // SMS content length validation (160 chars standard, 1600 for concatenated)
+    if (messageContent.length > 1600) {
+      throw new Error('SMS content too long (max 1600 characters)');
+    }
+    
+    // Validate phone number
+    if (!to || typeof to !== 'string' || to.trim() === '') {
+      throw new Error('Recipient phone number is required');
+    }
+    
+    if (to.length > 20) {
+      throw new Error('Phone number too long');
+    }
+    
+    // Basic phone number format validation
+    const phoneRegex = /^\+?[\d\s\-\(\)\.]{7,20}$/;
+    if (!phoneRegex.test(to)) {
+      throw new Error('Invalid phone number format');
+    }
+    
+    // Sanitize content - remove potentially harmful content
+    const formattedContent = messageContent
+      .replace(/undefined/g, '')
+      .replace(/<script[^>]*>.*?<\/script>/gi, '') // Remove script tags
+      .replace(/javascript:|data:|vbscript:/gi, '') // Remove dangerous protocols
+      .trim();
+      
+    if (formattedContent.length === 0) {
+      throw new Error('Message content is empty after sanitization');
+    }
     
     const twilioAccountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
     const twilioAuthToken = Deno.env.get('TWILIO_AUTH_TOKEN');
