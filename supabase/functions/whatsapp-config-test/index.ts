@@ -30,34 +30,59 @@ const handler = async (req: Request): Promise<Response> => {
     // Check Twilio configuration
     const twilioConfigComplete = twilioAccountSid && twilioAuthToken && twilioPhoneNumber;
 
-    // Test Twilio WhatsApp connection if configured
+    // Enhanced diagnostics for Twilio WhatsApp
     let twilioStatus = 'not configured';
+    let diagnostics = null;
+    
     if (twilioConfigComplete) {
       try {
-        // Test by attempting to validate the phone number via Twilio's API
-        const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(twilioPhoneNumber)}`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
-          },
-        });
+        // Check if this is a sandbox number
+        const isSandboxNumber = twilioPhoneNumber.includes('15557932346') || twilioPhoneNumber.includes('14155238886');
+        const hasLiveCredentials = twilioAccountSid.startsWith('AC');
         
-        if (response.ok) {
-          const data = await response.json();
-          if (data.incoming_phone_numbers && data.incoming_phone_numbers.length > 0) {
-            const phoneNumberData = data.incoming_phone_numbers[0];
-            // Check if it has WhatsApp capabilities
-            if (phoneNumberData.capabilities && phoneNumberData.capabilities.mms) {
-              twilioStatus = 'connected';
+        diagnostics = {
+          phoneNumber: twilioPhoneNumber,
+          isSandboxNumber,
+          hasLiveCredentials,
+          recommendedAction: null
+        };
+        
+        if (isSandboxNumber && hasLiveCredentials) {
+          twilioStatus = 'sandbox number with live credentials - incompatible';
+          diagnostics.recommendedAction = 'Purchase a WhatsApp Business number or use test credentials';
+        } else if (isSandboxNumber) {
+          twilioStatus = 'sandbox configured for testing';
+          diagnostics.recommendedAction = 'Join WhatsApp sandbox by messaging "join [code]" to +14155238886';
+        } else {
+          // Test by attempting to validate the phone number via Twilio's API
+          const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(twilioPhoneNumber)}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+            },
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.incoming_phone_numbers && data.incoming_phone_numbers.length > 0) {
+              const phoneNumberData = data.incoming_phone_numbers[0];
+              // Check if it has WhatsApp capabilities
+              if (phoneNumberData.capabilities && phoneNumberData.capabilities.mms) {
+                twilioStatus = 'connected - WhatsApp capable';
+                diagnostics.recommendedAction = 'Complete WhatsApp Business API setup in Twilio Console';
+              } else {
+                twilioStatus = 'phone number found but no WhatsApp capability';
+                diagnostics.recommendedAction = 'Enable WhatsApp capability for this number';
+              }
             } else {
-              twilioStatus = 'configured but no WhatsApp capability';
+              twilioStatus = 'phone number not found in account';
+              diagnostics.recommendedAction = 'Verify phone number ownership in Twilio Console';
             }
           } else {
-            twilioStatus = 'phone number not found in account';
+            const errorData = await response.json();
+            twilioStatus = `error: ${errorData.message || response.status}`;
+            diagnostics.recommendedAction = 'Check Twilio account permissions and phone number configuration';
           }
-        } else {
-          const errorData = await response.json();
-          twilioStatus = `error: ${errorData.message || response.status}`;
         }
       } catch (error) {
         twilioStatus = `connection failed: ${error.message}`;
@@ -75,9 +100,10 @@ const handler = async (req: Request): Promise<Response> => {
           hasPhoneNumber: !!twilioPhoneNumber,
         }
       },
-      recommendation: twilioConfigComplete && twilioStatus === 'connected'
+      diagnostics,
+      recommendation: twilioConfigComplete && twilioStatus.includes('connected')
         ? 'Twilio WhatsApp is ready to use'
-        : 'Configure Twilio for WhatsApp messaging'
+        : diagnostics?.recommendedAction || 'Configure Twilio for WhatsApp messaging'
     };
 
     return new Response(JSON.stringify(configStatus), {

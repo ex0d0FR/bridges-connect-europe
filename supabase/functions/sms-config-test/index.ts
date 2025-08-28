@@ -129,11 +129,36 @@ const handler = async (req: Request): Promise<Response> => {
       const errorText = await twilioResponse.text();
       console.error('Twilio test error:', errorText);
       
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+      
+      // Enhanced error message for common issues
+      let enhancedError = `SMS test failed: ${errorData.message || errorText}`;
+      
+      if (errorData.code === 21659) {
+        enhancedError = `Phone number ${twilioPhoneNumber} is not a valid Twilio phone number. This usually means you're using a sandbox number with live credentials, or the number isn't purchased in your Twilio account.`;
+      } else if (errorData.code === 21614) {
+        enhancedError = `Phone number ${twilioPhoneNumber} is not a mobile number. SMS can only be sent to mobile phones.`;
+      } else if (errorData.code === 21408) {
+        enhancedError = `Permission denied for phone number ${twilioPhoneNumber}. Check if you have SMS capabilities enabled.`;
+      }
+      
       return new Response(JSON.stringify({
         success: false,
-        error: `SMS test failed: ${errorText}`,
+        error: enhancedError,
         configCheck: configResults,
-        twilioStatus: twilioResponse.status
+        twilioStatus: twilioResponse.status,
+        twilioError: errorData,
+        diagnostics: {
+          phoneNumber: twilioPhoneNumber,
+          isSandboxNumber: twilioPhoneNumber?.includes('15557932346') || twilioPhoneNumber?.includes('14155238886'),
+          hasLiveCredentials: !!twilioAccountSid && twilioAccountSid.startsWith('AC'),
+          recommendedAction: twilioPhoneNumber?.includes('15557932346') ? 'Purchase a real phone number or use test credentials' : 'Verify phone number ownership in Twilio Console'
+        }
       }), {
         status: 400,
         headers: {

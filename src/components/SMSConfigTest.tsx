@@ -16,6 +16,13 @@ interface ConfigCheck {
   phoneNumberConfigured: boolean;
 }
 
+interface Diagnostics {
+  phoneNumber: string;
+  isSandboxNumber: boolean;
+  hasLiveCredentials: boolean;
+  recommendedAction: string;
+}
+
 interface TestResults {
   messageId: string;
   status: string;
@@ -28,6 +35,7 @@ export function SMSConfigTest() {
   const [isLoading, setIsLoading] = useState(false);
   const [configCheck, setConfigCheck] = useState<ConfigCheck | null>(null);
   const [testResults, setTestResults] = useState<TestResults | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -45,6 +53,7 @@ export function SMSConfigTest() {
     setError(null);
     setConfigCheck(null);
     setTestResults(null);
+    setDiagnostics(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('sms-config-test', {
@@ -58,12 +67,14 @@ export function SMSConfigTest() {
       if (data.success) {
         setConfigCheck(data.configCheck);
         setTestResults(data.testResults);
+        setDiagnostics(data.diagnostics);
         toast({
           title: 'SMS Test Successful',
           description: 'Test message sent successfully! Check your phone.',
         });
       } else {
         setConfigCheck(data.configCheck);
+        setDiagnostics(data.diagnostics);
         setError(data.error);
         toast({
           title: 'SMS Test Failed',
@@ -168,6 +179,37 @@ export function SMSConfigTest() {
                 {configCheck.phoneNumberConfigured ? 'Configured' : 'Not Used'}
               </Badge>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Diagnostics Section */}
+      {diagnostics && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuration Analysis</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span>Phone Number Type</span>
+              <Badge variant={diagnostics.isSandboxNumber ? "secondary" : "default"}>
+                {diagnostics.isSandboxNumber ? "Sandbox" : "Production"}
+              </Badge>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <span>Credentials Type</span>
+              <Badge variant={diagnostics.hasLiveCredentials ? "default" : "secondary"}>
+                {diagnostics.hasLiveCredentials ? "Live" : "Test"}
+              </Badge>
+            </div>
+            
+            {diagnostics.recommendedAction && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Recommended Action:</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">{diagnostics.recommendedAction}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

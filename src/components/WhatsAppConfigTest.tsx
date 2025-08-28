@@ -17,6 +17,12 @@ interface ConfigStatus {
       hasPhoneNumber: boolean
     }
   }
+  diagnostics?: {
+    phoneNumber: string
+    isSandboxNumber: boolean
+    hasLiveCredentials: boolean
+    recommendedAction: string | null
+  } | null
   recommendation: string
 }
 
@@ -139,6 +145,32 @@ export function WhatsAppConfigTest() {
                 <span>Phone Number</span>
               </div>
             </div>
+
+            {/* Diagnostics */}
+            {status.diagnostics && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+                <h4 className="font-medium mb-2 text-blue-800 dark:text-blue-200">Configuration Analysis</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Phone Type:</span>
+                    <Badge variant={status.diagnostics.isSandboxNumber ? "secondary" : "default"}>
+                      {status.diagnostics.isSandboxNumber ? "Sandbox" : "Production"}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Credentials:</span>
+                    <Badge variant={status.diagnostics.hasLiveCredentials ? "default" : "secondary"}>
+                      {status.diagnostics.hasLiveCredentials ? "Live" : "Test"}
+                    </Badge>
+                  </div>
+                  {status.diagnostics.recommendedAction && (
+                    <p className="text-blue-700 dark:text-blue-300 mt-2">
+                      <strong>Action:</strong> {status.diagnostics.recommendedAction}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Recommendation */}
             <div className="p-3 bg-muted rounded-lg">
