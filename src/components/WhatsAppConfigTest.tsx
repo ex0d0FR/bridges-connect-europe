@@ -177,6 +177,41 @@ export function WhatsAppConfigTest() {
               <h4 className="font-medium mb-2">Status</h4>
               <p className="text-sm text-muted-foreground">{status.recommendation}</p>
             </div>
+
+            {/* Specific WhatsApp Error Help */}
+            {status.twilio.status.includes('63007') && (
+              <div className="p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 rounded-lg">
+                <h4 className="font-medium text-red-800 dark:text-red-200 mb-2">
+                  WhatsApp Configuration Issue (Error 63007)
+                </h4>
+                <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+                  Your phone number is not configured as a WhatsApp Business sender. This is the most common WhatsApp setup issue.
+                </p>
+                <div className="text-sm text-red-600 dark:text-red-400">
+                  <strong>Quick Solutions:</strong>
+                  <ul className="list-disc list-inside mt-1 space-y-1 ml-2">
+                    <li>Use WhatsApp Sandbox (+14155238886) for immediate testing</li>
+                    <li>Enable WhatsApp capability for your current number in Twilio Console</li>
+                    <li>Purchase a new Twilio number with WhatsApp pre-enabled</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+
+            {/* Configuration Mismatch Warning */}
+            {status.diagnostics && 
+             status.diagnostics.hasLiveCredentials && 
+             status.diagnostics.isSandboxNumber && (
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 rounded-lg">
+                <h4 className="font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+                  Configuration Mismatch Detected
+                </h4>
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  You're using live Twilio credentials with a sandbox number. For production WhatsApp, 
+                  you need either test credentials with sandbox numbers, or live credentials with purchased numbers.
+                </p>
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center py-8 text-muted-foreground">

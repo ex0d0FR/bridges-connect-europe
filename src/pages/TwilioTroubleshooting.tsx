@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { SMSConfigTest } from '@/components/SMSConfigTest';
 import { WhatsAppConfigTest } from '@/components/WhatsAppConfigTest';
 import { TwilioConfigurationGuide } from '@/components/TwilioConfigurationGuide';
+import { WhatsAppSetupGuide } from '@/components/WhatsAppSetupGuide';
 import { Settings, Phone, MessageCircle, AlertTriangle } from 'lucide-react';
 
 export default function TwilioTroubleshooting() {
@@ -19,11 +20,15 @@ export default function TwilioTroubleshooting() {
         </p>
       </div>
 
-      <Tabs defaultValue="guide" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="whatsapp-setup" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="whatsapp-setup" className="flex items-center gap-2">
+            <MessageCircle className="h-4 w-4" />
+            WhatsApp Setup
+          </TabsTrigger>
           <TabsTrigger value="guide" className="flex items-center gap-2">
             <Settings className="h-4 w-4" />
-            Setup Guide
+            General Guide
           </TabsTrigger>
           <TabsTrigger value="sms-test" className="flex items-center gap-2">
             <Phone className="h-4 w-4" />
@@ -39,9 +44,17 @@ export default function TwilioTroubleshooting() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="whatsapp-setup">
+          <WhatsAppSetupGuide 
+            currentPhoneNumber="+19287676457"
+            errorCode="63007"
+            hasLiveCredentials={true}
+          />
+        </TabsContent>
+
         <TabsContent value="guide">
           <TwilioConfigurationGuide 
-            currentPhoneNumber="+15557932346"
+            currentPhoneNumber="+19287676457"
             hasLiveCredentials={true}
             smsErrors={smsErrors}
             whatsAppErrors={whatsAppErrors}
@@ -115,6 +128,25 @@ export default function TwilioTroubleshooting() {
                 <div>
                   <h3 className="text-lg font-semibold mb-3">WhatsApp Error Codes</h3>
                   <div className="grid gap-3">
+                    <div className="p-3 border rounded border-red-200 bg-red-50 dark:bg-red-900/10">
+                      <div className="flex justify-between items-center mb-2">
+                        <code className="text-sm bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded">Error 63007</code>
+                        <span className="text-sm text-red-600 font-medium">MOST COMMON</span>
+                      </div>
+                      <p className="font-medium text-red-800 dark:text-red-200">WhatsApp sender number not configured</p>
+                      <p className="text-sm text-red-700 dark:text-red-300 mb-2">
+                        Your phone number (+19287676457) is not set up as a WhatsApp Business sender in Twilio
+                      </p>
+                      <div className="text-sm text-red-600 dark:text-red-400">
+                        <strong>Solutions (choose one):</strong>
+                        <ul className="list-disc list-inside mt-1 space-y-1">
+                          <li><strong>For Testing:</strong> Use WhatsApp Sandbox (+14155238886)</li>
+                          <li><strong>For Production:</strong> Enable WhatsApp Business API for your number</li>
+                          <li><strong>Quick Fix:</strong> Purchase a Twilio number with WhatsApp capability</li>
+                        </ul>
+                      </div>
+                    </div>
+
                     <div className="p-3 border rounded">
                       <code className="text-sm bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded">Error 21212</code>
                       <p className="font-medium mt-2">Invalid WhatsApp sender number</p>
@@ -132,8 +164,19 @@ export default function TwilioTroubleshooting() {
                     </div>
 
                     <div className="p-3 border rounded">
-                      <code className="text-sm bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded">Error 63007</code>
-                      <p className="font-medium mt-2">WhatsApp template not approved</p>
+                      <code className="text-sm bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded">Error 21408</code>
+                      <p className="font-medium mt-2">WhatsApp capability not enabled</p>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Phone number exists but WhatsApp is not enabled for this number
+                      </p>
+                      <div className="text-sm">
+                        <strong>Solution:</strong> Enable WhatsApp capability in Twilio Console → Phone Numbers
+                      </div>
+                    </div>
+
+                    <div className="p-3 border rounded">
+                      <code className="text-sm bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded">Error 21620</code>
+                      <p className="font-medium mt-2">WhatsApp template rejected</p>
                       <p className="text-sm text-muted-foreground mb-2">
                         Template messages must be pre-approved by WhatsApp
                       </p>
