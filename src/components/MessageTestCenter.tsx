@@ -116,23 +116,46 @@ export function MessageTestCenter() {
         body: {
           to: smsForm.to,
           content: smsForm.content,
-          churchId: '00000000-0000-0000-0000-000000000000'
+          churchId: '00000000-0000-0000-0000-000000000000',
+          isTest: true
         }
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('SMS send error:', error);
+        let errorMessage = 'Failed to send SMS';
+        
+        if (error.message?.includes('Twilio credentials missing')) {
+          errorMessage = 'SMS not configured: Twilio credentials are missing. Please check Settings → Messaging tab.';
+        } else if (error.message?.includes('Twilio sender configuration missing')) {
+          errorMessage = 'SMS not configured: Twilio phone number is missing. Please check Settings → Messaging tab.';
+        } else if (error.message?.includes('Invalid phone number')) {
+          errorMessage = 'Please enter a valid phone number (e.g., +33612345678)';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
 
-      addTestResult({
-        type: 'sms',
-        success: true,
-        message: `SMS sent successfully to ${smsForm.to}`,
-        timestamp: new Date()
-      })
+      if (data?.success) {
+        addTestResult({
+          type: 'sms',
+          success: true,
+          message: `SMS sent successfully to ${smsForm.to}. Message ID: ${data.messageId}`,
+          timestamp: new Date()
+        })
 
-      toast({
-        title: "SMS Test Successful",
-        description: `Test SMS sent to ${smsForm.to}`,
-      })
+        toast({
+          title: "SMS Test Successful",
+          description: `Test SMS sent to ${smsForm.to}`,
+        })
+        
+        // Clear form on success
+        setSmsForm(prev => ({ ...prev, to: '', content: 'Test SMS from Missionary Bridges. Please ignore this message.' }))
+      } else {
+        throw new Error('SMS sending failed - please check your configuration');
+      }
     } catch (error: any) {
       const errorMessage = error.message || 'Unknown error occurred'
       
@@ -174,21 +197,39 @@ export function MessageTestCenter() {
         }
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('WhatsApp send error:', error);
+        let errorMessage = 'WhatsApp Business API is not fully configured yet';
+        
+        if (error.message?.includes('WhatsApp') || error.message?.includes('WHATSAPP')) {
+          errorMessage = 'WhatsApp messaging is coming soon! For now, you can use SMS and email messaging.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
 
-      addTestResult({
-        type: 'whatsapp',
-        success: true,
-        message: `WhatsApp sent successfully to ${whatsappForm.to}`,
-        timestamp: new Date()
-      })
+      if (data?.success) {
+        addTestResult({
+          type: 'whatsapp',
+          success: true,
+          message: `WhatsApp sent successfully to ${whatsappForm.to}`,
+          timestamp: new Date()
+        })
 
-      toast({
-        title: "WhatsApp Test Successful",
-        description: `Test WhatsApp sent to ${whatsappForm.to}`,
-      })
+        toast({
+          title: "WhatsApp Test Successful",
+          description: `Test WhatsApp sent to ${whatsappForm.to}`,
+        })
+        
+        // Clear form on success
+        setWhatsappForm(prev => ({ ...prev, to: '', content: 'Test WhatsApp message from Missionary Bridges. Please ignore this message.' }))
+      } else {
+        throw new Error('WhatsApp messaging is not available yet - please use SMS or email instead');
+      }
     } catch (error: any) {
-      const errorMessage = error.message || 'Unknown error occurred'
+      const errorMessage = error.message || 'WhatsApp messaging is coming soon! Use SMS or email for now.'
       
       addTestResult({
         type: 'whatsapp',
@@ -198,9 +239,9 @@ export function MessageTestCenter() {
       })
 
       toast({
-        title: "WhatsApp Test Failed",
+        title: "WhatsApp Not Available",
         description: errorMessage,
-        variant: "destructive"
+        variant: "default"
       })
     } finally {
       setIsLoading(prev => ({ ...prev, whatsapp: false }))

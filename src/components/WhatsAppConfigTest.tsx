@@ -56,10 +56,21 @@ export function WhatsAppConfigTest() {
       }
     } catch (error: any) {
       console.error('Error testing WhatsApp configuration:', error)
+      
+      let errorMessage = 'Failed to test WhatsApp configuration'
+      
+      if (error.message?.includes('WhatsApp credentials missing') || error.message?.includes('WHATSAPP')) {
+        errorMessage = 'WhatsApp Business API is not fully configured yet. This feature is coming soon! For now, you can use SMS and email messaging.'
+      } else if (error.message?.includes('Authentication failed')) {
+        errorMessage = 'Authentication failed. Please log in again.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       toast({
-        title: "Test Failed",
-        description: error.message || "Failed to test WhatsApp configuration",
-        variant: "destructive",
+        title: "WhatsApp Configuration Status",
+        description: errorMessage,
+        variant: error.message?.includes('coming soon') ? "default" : "destructive",
       })
     } finally {
       setIsLoading(false)

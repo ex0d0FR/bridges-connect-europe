@@ -41,11 +41,15 @@ export function SMSConfigTest() {
 
   const handleTest = async () => {
     if (!phoneNumber.trim()) {
-      toast({
-        title: 'Phone number required',
-        description: 'Please enter a phone number to test SMS functionality.',
-        variant: 'destructive',
-      });
+      setError('Please enter a phone number');
+      return;
+    }
+
+    // Enhanced phone number validation
+    const cleanedPhone = phoneNumber.trim();
+    const phoneRegex = /^\+?[\d\s\-\(\)\.]{7,20}$/;
+    if (!phoneRegex.test(cleanedPhone)) {
+      setError('Please enter a valid phone number (e.g., +1234567890 or 1234567890)');
       return;
     }
 
@@ -57,11 +61,32 @@ export function SMSConfigTest() {
 
     try {
       const { data, error } = await supabase.functions.invoke('sms-config-test', {
-        body: { phoneNumber },
+        body: { phoneNumber: cleanedPhone },
       });
 
       if (error) {
-        throw error;
+        console.error('SMS config test error:', error);
+        let errorMessage = 'Failed to test SMS configuration';
+        
+        if (error.message?.includes('Twilio credentials missing')) {
+          errorMessage = 'Twilio credentials are not configured. Please check your Twilio Account SID and Auth Token in Settings → Messaging.';
+        } else if (error.message?.includes('Twilio sender configuration missing')) {
+          errorMessage = 'Twilio phone number or messaging service is not configured. Please add TWILIO_PHONE_NUMBER or TWILIO_MESSAGING_SERVICE_SID in Settings → Messaging.';
+        } else if (error.message?.includes('Authentication failed')) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else if (error.message?.includes('Invalid phone number')) {
+          errorMessage = 'Please enter a valid phone number format (e.g., +33612345678)';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
+        toast({
+          title: 'SMS Test Failed',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
       }
 
       if (data.success) {
@@ -70,23 +95,26 @@ export function SMSConfigTest() {
         setDiagnostics(data.diagnostics);
         toast({
           title: 'SMS Test Successful',
-          description: 'Test message sent successfully! Check your phone.',
+          description: `Test message sent successfully! Message ID: ${data.testResults?.messageId}`,
         });
       } else {
         setConfigCheck(data.configCheck);
         setDiagnostics(data.diagnostics);
-        setError(data.error);
+        const errorMsg = data.error || 'Unknown error occurred';
+        setError(errorMsg);
         toast({
           title: 'SMS Test Failed',
-          description: data.error,
+          description: errorMsg,
           variant: 'destructive',
         });
       }
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
+      console.error('Unexpected error:', err);
+      const errorMessage = err.message || 'An unexpected error occurred while testing SMS';
+      setError(errorMessage);
       toast({
         title: 'Test Failed',
-        description: err.message || 'An unexpected error occurred',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
