@@ -10,6 +10,8 @@ import { MessageTestCenter } from "@/components/MessageTestCenter"
 import { ConfigurationChecker } from "@/components/ConfigurationChecker"
 import { SMSConfigTest } from "@/components/SMSConfigTest"
 import { TwilioAccountInfo } from "@/components/TwilioAccountInfo"
+import { SecurityDocumentation } from "@/components/SecurityDocumentation"
+import { SecurityAuditComponent } from "@/components/SecurityAuditComponent"
 import { useForm } from "react-hook-form"
 import { useSettings } from "@/hooks/useSettings"
 import { useEffect } from "react"
@@ -106,6 +108,7 @@ export default function Settings() {
         <TabsList>
           <TabsTrigger value="test">Test Center</TabsTrigger>
           <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="email">Email</TabsTrigger>
           <TabsTrigger value="messaging">Messaging</TabsTrigger>
@@ -118,6 +121,13 @@ export default function Settings() {
 
         <TabsContent value="config">
           <ConfigurationChecker />
+        </TabsContent>
+
+        <TabsContent value="security">
+          <div className="space-y-6">
+            <SecurityDocumentation />
+            <SecurityAuditComponent />
+          </div>
         </TabsContent>
 
         <TabsContent value="general">

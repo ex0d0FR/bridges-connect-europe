@@ -22,10 +22,11 @@ export const useSecurityHeaders = () => {
     xContentType.content = 'nosniff';
     document.head.appendChild(xContentType);
 
-    // Set X-Frame-Options
+    // Note: X-Frame-Options set to SAMEORIGIN for Lovable compatibility
+    // DENY would break iframe functionality in development environment
     const xFrameOptions = document.createElement('meta');
     xFrameOptions.httpEquiv = 'X-Frame-Options';
-    xFrameOptions.content = 'DENY';
+    xFrameOptions.content = 'SAMEORIGIN';
     document.head.appendChild(xFrameOptions);
 
     // Set Referrer Policy

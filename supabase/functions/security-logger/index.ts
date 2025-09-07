@@ -40,17 +40,19 @@ const handler = async (req: Request): Promise<Response> => {
       rateLimitMap.set(clientIP, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
     }
 
-    // Check authorization
+    // Enhanced authorization check with stricter validation
     const authHeader = req.headers.get('authorization');
-    if (!authHeader || !authHeader.includes('Bearer ')) {
-      // Log unauthorized access attempt
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // Log unauthorized access attempt with enhanced details
       console.log('SECURITY_EVENT:', JSON.stringify({
         event_type: 'unauthorized_access_attempt',
-        severity: 'medium',
+        severity: 'high', // Increased severity for security logger access
         timestamp: new Date().toISOString(),
         client_ip: clientIP,
         user_agent: req.headers.get('user-agent'),
+        referer: req.headers.get('referer'),
         source: 'security-logger',
+        attempted_endpoint: req.url,
       }));
       
       return new Response(
@@ -65,10 +67,40 @@ const handler = async (req: Request): Promise<Response> => {
     const body = await req.json();
     const { timestamp, event_type, details, severity, session_id, user_id } = body;
 
-    // Validate required fields
+    // Enhanced validation with security event type checking
     if (!event_type || !severity || !timestamp) {
+      console.log('SECURITY_EVENT:', JSON.stringify({
+        event_type: 'malformed_security_event',
+        severity: 'medium',
+        timestamp: new Date().toISOString(),
+        client_ip: clientIP,
+        details: { received_data: body },
+        source: 'security-logger',
+      }));
+      
       return new Response(
         JSON.stringify({ error: 'Missing required fields: event_type, severity, timestamp' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        }
+      );
+    }
+
+    // Validate severity levels to prevent log injection
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
+    if (!validSeverities.includes(severity)) {
+      console.log('SECURITY_EVENT:', JSON.stringify({
+        event_type: 'invalid_severity_level',
+        severity: 'medium',
+        timestamp: new Date().toISOString(),
+        client_ip: clientIP,
+        details: { received_severity: severity },
+        source: 'security-logger',
+      }));
+      
+      return new Response(
+        JSON.stringify({ error: 'Invalid severity level' }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json', ...corsHeaders },
