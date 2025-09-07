@@ -154,7 +154,39 @@ const handler = async (req: Request): Promise<Response> => {
     if (!twilioResponse.ok) {
       const errorText = await twilioResponse.text();
       console.error('Twilio API error response:', errorText);
-      throw new Error(`Twilio error (${twilioResponse.status}): ${errorText}`);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+      
+      // Enhanced error messaging with specific guidance
+      let enhancedError = `SMS sending failed: ${errorData.message || errorText}`;
+      const errorCode = errorData.code;
+      
+      if (errorCode === 21659) {
+        enhancedError = `Invalid sender: Phone number ${twilioPhoneNumber} is not owned by your Twilio account. Purchase a number or use Messaging Service.`;
+      } else if (errorCode === 21614) {
+        enhancedError = `Invalid recipient: ${to} is not a mobile number. SMS can only be sent to mobile phones.`;
+      } else if (errorCode === 21606) {
+        enhancedError = `Trial restriction: Cannot send to ${to}. Trial accounts can only send to verified numbers.`;
+      } else if (errorCode === 21608) {
+        enhancedError = `Trial limitation: Your Twilio account has restricted messaging. Upgrade to remove limitations.`;
+      } else if (errorCode === 20001) {
+        enhancedError = `Authentication failed: Invalid Twilio credentials. Check your Account SID and Auth Token.`;
+      } else if (errorCode === 21212 || errorCode === 21211) {
+        enhancedError = `Invalid phone number: ${to} is not in valid E.164 format. Use +countrycode followed by number.`;
+      } else if (errorCode === 20003) {
+        enhancedError = `Insufficient funds: Your Twilio account balance is too low to send messages.`;
+      } else if (errorCode === 21612) {
+        enhancedError = `Geographic restriction: Cannot send SMS to ${to}. Check if SMS is supported in this region.`;
+      } else if (errorCode === 20429) {
+        enhancedError = `Rate limit exceeded: Too many requests. Wait before sending more messages.`;
+      }
+      
+      throw new Error(enhancedError);
     }
 
     const twilioData = await twilioResponse.json();

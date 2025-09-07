@@ -136,28 +136,119 @@ const handler = async (req: Request): Promise<Response> => {
         errorData = { message: errorText };
       }
       
-      // Enhanced error message for common issues
+      // Enhanced error analysis using comprehensive error mapping
+      const errorCode = errorData.code;
       let enhancedError = `SMS test failed: ${errorData.message || errorText}`;
+      let errorCategory = 'unknown';
+      let solutions: string[] = [];
+      let quickFix: string | undefined;
       
-      if (errorData.code === 21659) {
-        enhancedError = `Phone number ${twilioPhoneNumber} is not a valid Twilio phone number. This usually means you're using a sandbox number with live credentials, or the number isn't purchased in your Twilio account.`;
-      } else if (errorData.code === 21614) {
-        enhancedError = `Phone number ${twilioPhoneNumber} is not a mobile number. SMS can only be sent to mobile phones.`;
-      } else if (errorData.code === 21408) {
-        enhancedError = `Permission denied for phone number ${twilioPhoneNumber}. Check if you have SMS capabilities enabled.`;
+      // Comprehensive error code mapping
+      if (errorCode === 21659) {
+        enhancedError = `Invalid sender phone number: ${twilioPhoneNumber} is not owned by your Twilio account or doesn't have SMS capabilities.`;
+        errorCategory = 'configuration';
+        solutions = [
+          'Purchase a phone number from Twilio Console',
+          'Verify the number in your Twilio account',
+          'Use a Messaging Service SID instead',
+          'Check if using sandbox number with live credentials'
+        ];
+        quickFix = 'Purchase a Twilio phone number';
+      } else if (errorCode === 21614) {
+        enhancedError = `Invalid recipient: ${phoneNumber} is not a mobile number. SMS can only be sent to mobile phones.`;
+        errorCategory = 'validation';
+        solutions = [
+          'Verify the number belongs to a mobile carrier',
+          'Use a different mobile number for testing',
+          'Check if the number has SMS capabilities'
+        ];
+      } else if (errorCode === 21408) {
+        enhancedError = `Permission denied: You don't have permission to send from ${twilioPhoneNumber}.`;
+        errorCategory = 'permissions';
+        solutions = [
+          'Verify SMS capabilities are enabled for this number',
+          'Check number ownership in Twilio Console',
+          'Ensure proper account permissions'
+        ];
+      } else if (errorCode === 21606) {
+        enhancedError = `Trial account restriction: Can only send to verified phone numbers. ${phoneNumber} is not verified.`;
+        errorCategory = 'permissions';
+        solutions = [
+          'Add recipient to verified numbers in Twilio Console',
+          'Upgrade to a paid Twilio account',
+          'Use a verified test number'
+        ];
+        quickFix = 'Verify recipient number in Twilio Console';
+      } else if (errorCode === 21608) {
+        enhancedError = `Trial account limitation: Your trial account has restricted messaging capabilities.`;
+        errorCategory = 'permissions';
+        solutions = [
+          'Upgrade to a paid Twilio account',
+          'Use only verified phone numbers',
+          'Purchase Twilio credits'
+        ];
+        quickFix = 'Upgrade Twilio account';
+      } else if (errorCode === 20001) {
+        enhancedError = `Authentication failed: Invalid Twilio credentials (Account SID or Auth Token).`;
+        errorCategory = 'configuration';
+        solutions = [
+          'Verify Account SID and Auth Token in Twilio Console',
+          'Check for typos or extra spaces in credentials',
+          'Regenerate Auth Token if necessary'
+        ];
+        quickFix = 'Update Twilio credentials';
+      } else if (errorCode === 21212 || errorCode === 21211) {
+        enhancedError = `Invalid phone number format: ${phoneNumber} is not a valid phone number.`;
+        errorCategory = 'validation';
+        solutions = [
+          'Use E.164 format (+1234567890)',
+          'Remove spaces, dashes, or special characters',
+          'Verify the country code is correct'
+        ];
+      } else if (errorCode === 20003) {
+        enhancedError = `Insufficient funds: Your Twilio account doesn't have enough balance to send messages.`;
+        errorCategory = 'billing';
+        solutions = [
+          'Add funds to your Twilio account',
+          'Set up auto-recharge',
+          'Check current account balance'
+        ];
+        quickFix = 'Add credits to Twilio account';
+      }
+      
+      // Enhanced diagnostics
+      const isSandboxNum = twilioPhoneNumber?.includes('15557932346') || 
+                          twilioPhoneNumber?.includes('14155238886') ||
+                          twilioPhoneNumber?.includes('15005550006');
+      const hasLiveCreds = !!twilioAccountSid && twilioAccountSid.startsWith('AC');
+      
+      let recommendedAction = 'Review Twilio Console for account status';
+      if (isSandboxNum && hasLiveCreds) {
+        recommendedAction = 'You\'re using a sandbox number with live credentials. Either purchase a real number or use test credentials.';
+      } else if (errorCode === 21659) {
+        recommendedAction = 'Purchase a phone number from Twilio or use a Messaging Service';
+      } else if (errorCode === 21606 || errorCode === 21608) {
+        recommendedAction = 'Upgrade your Twilio account from trial to paid';
       }
       
       return new Response(JSON.stringify({
         success: false,
         error: enhancedError,
+        errorCode: errorCode,
+        errorCategory: errorCategory,
+        solutions: solutions,
+        quickFix: quickFix,
         configCheck: configResults,
         twilioStatus: twilioResponse.status,
         twilioError: errorData,
         diagnostics: {
           phoneNumber: twilioPhoneNumber,
-          isSandboxNumber: twilioPhoneNumber?.includes('15557932346') || twilioPhoneNumber?.includes('14155238886'),
-          hasLiveCredentials: !!twilioAccountSid && twilioAccountSid.startsWith('AC'),
-          recommendedAction: twilioPhoneNumber?.includes('15557932346') ? 'Purchase a real phone number or use test credentials' : 'Verify phone number ownership in Twilio Console'
+          isSandboxNumber: isSandboxNum,
+          hasLiveCredentials: hasLiveCreds,
+          credentialType: hasLiveCreds ? 'live' : 'test',
+          phoneNumberType: isSandboxNum ? 'sandbox' : 'production',
+          accountType: hasLiveCreds && (errorCode === 21606 || errorCode === 21608) ? 'trial' : 'unknown',
+          recommendedAction: recommendedAction
         }
       }), {
         status: 400,

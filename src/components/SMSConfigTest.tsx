@@ -20,6 +20,9 @@ interface Diagnostics {
   phoneNumber: string;
   isSandboxNumber: boolean;
   hasLiveCredentials: boolean;
+  credentialType: string;
+  phoneNumberType: string;
+  accountType?: string;
   recommendedAction: string;
 }
 
@@ -37,6 +40,9 @@ export function SMSConfigTest() {
   const [testResults, setTestResults] = useState<TestResults | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<number | null>(null);
+  const [solutions, setSolutions] = useState<string[]>([]);
+  const [quickFix, setQuickFix] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleTest = async () => {
@@ -58,6 +64,9 @@ export function SMSConfigTest() {
     setConfigCheck(null);
     setTestResults(null);
     setDiagnostics(null);
+    setErrorCode(null);
+    setSolutions([]);
+    setQuickFix(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('sms-config-test', {
@@ -100,11 +109,15 @@ export function SMSConfigTest() {
       } else {
         setConfigCheck(data.configCheck);
         setDiagnostics(data.diagnostics);
+        setErrorCode(data.errorCode);
+        setSolutions(data.solutions || []);
+        setQuickFix(data.quickFix);
+        
         const errorMsg = data.error || 'Unknown error occurred';
         setError(errorMsg);
         toast({
           title: 'SMS Test Failed',
-          description: errorMsg,
+          description: data.quickFix || errorMsg,
           variant: 'destructive',
         });
       }
@@ -160,8 +173,41 @@ export function SMSConfigTest() {
       {error && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            <div className="space-y-2">
+              <p>{error}</p>
+              {errorCode && <p className="text-xs opacity-75">Error Code: {errorCode}</p>}
+            </div>
+          </AlertDescription>
         </Alert>
+      )}
+
+      {/* Enhanced Solutions Section */}
+      {solutions.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-orange-600">Troubleshooting Solutions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {quickFix && (
+              <div className="mb-4 p-3 bg-orange-50 dark:bg-orange-900/10 rounded border border-orange-200 dark:border-orange-800">
+                <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Quick Fix:</p>
+                <p className="text-sm text-orange-700 dark:text-orange-300">{quickFix}</p>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Try these solutions:</p>
+              <ul className="text-sm space-y-1 ml-4">
+                {solutions.map((solution, index) => (
+                  <li key={index} className="list-disc text-muted-foreground">
+                    {solution}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {configCheck && (
@@ -228,9 +274,18 @@ export function SMSConfigTest() {
             <div className="flex items-center justify-between">
               <span>Credentials Type</span>
               <Badge variant={diagnostics.hasLiveCredentials ? "default" : "secondary"}>
-                {diagnostics.hasLiveCredentials ? "Live" : "Test"}
+                {diagnostics.credentialType}
               </Badge>
             </div>
+            
+            {diagnostics.accountType && (
+              <div className="flex items-center justify-between">
+                <span>Account Type</span>
+                <Badge variant={diagnostics.accountType === 'trial' ? "secondary" : "default"}>
+                  {diagnostics.accountType}
+                </Badge>
+              </div>
+            )}
             
             {diagnostics.recommendedAction && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/10 rounded">
