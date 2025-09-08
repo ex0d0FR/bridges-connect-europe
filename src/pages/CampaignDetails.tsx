@@ -124,6 +124,18 @@ export default function CampaignDetails() {
               Resume
             </Button>
           )}
+
+          {(campaign.status === 'active' || campaign.status === 'paused') && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateCampaignStatus.mutate({ campaignId: id!, status: 'completed' })}
+              disabled={updateCampaignStatus.isPending}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Stop
+            </Button>
+          )}
           
           {/* Retry Failed */}
           {failedMessages > 0 && (

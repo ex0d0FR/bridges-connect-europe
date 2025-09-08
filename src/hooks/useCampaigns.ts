@@ -193,22 +193,40 @@ export const useUpdateCampaignStatus = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  return useMutation({
-    mutationFn: async ({ campaignId, status }: { campaignId: string; status: Campaign['status'] }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+    return useMutation({
+      mutationFn: async ({ campaignId, status }: { campaignId: string; status: Campaign['status'] }) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
 
-      const { error } = await supabase
-        .from('campaigns')
-        .update({ status, updated_at: new Date().toISOString() })
-        .eq('id', campaignId)
-        .eq('created_by', user.id);
+        // Map status changes to edge function actions when applicable
+        let action: 'start' | 'pause' | 'stop' | null = null;
+        if (status === 'paused') action = 'pause';
+        else if (status === 'active') action = 'start';
+        else if (status === 'completed' || status === 'cancelled') action = 'stop';
 
-      if (error) throw error;
-    },
+        if (action) {
+          const { error } = await supabase.functions.invoke('campaign-management', {
+            body: { action, campaignId }
+          });
+          if (error) throw error;
+          return;
+        }
+
+        // Fallback to direct DB update for other statuses
+        const { error } = await supabase
+          .from('campaigns')
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq('id', campaignId)
+          .eq('created_by', user.id);
+
+        if (error) throw error;
+      },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       queryClient.invalidateQueries({ queryKey: ['campaign-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-details'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-message-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-church-stats'] });
       toast({
         title: "Success",
         description: "Campaign status updated successfully",

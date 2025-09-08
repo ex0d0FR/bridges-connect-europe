@@ -166,7 +166,21 @@ const handler = async (req: Request): Promise<Response> => {
       const template = templates[0];
       console.log(`Starting to send ${template.type} messages to ${campaignChurches.length} churches`);
 
-      // Process each church and send messages
+      // Helper to check latest campaign status so pause/stop can take effect mid-run
+      const getCampaignStatus = async (): Promise<string | null> => {
+        const { data: statusRow, error: statusError } = await supabase
+          .from('campaigns')
+          .select('status')
+          .eq('id', campaignId)
+          .single();
+        if (statusError) {
+          console.error('Error checking campaign status:', statusError);
+          return null;
+        }
+        return statusRow?.status ?? null;
+      };
+
+      // Process each church and send messages with pause/resume/stop support and de-duplication
       let successCount = 0;
       let failureCount = 0;
 
@@ -174,54 +188,88 @@ const handler = async (req: Request): Promise<Response> => {
         const church = campaignChurch.churches;
         if (!church) continue;
 
-        try {
-          let messageData: any = {
-            campaign_id: campaignId,
-            church_id: church.id,
-            template_id: template.id,
-            type: template.type,
-            content: template.content,
-            subject: template.subject,
-            created_by: user.id,
-            status: 'pending'
-          };
+        // Check status before processing each church
+        const currentStatus = await getCampaignStatus();
+        if (currentStatus && currentStatus !== 'active') {
+          console.log(`Halting send loop: campaign is ${currentStatus}`);
+          break;
+        }
 
-          // Set recipient based on message type
-          if (template.type === 'email' && church.email) {
-            messageData.recipient_email = church.email;
-          } else if ((template.type === 'sms' || template.type === 'whatsapp') && church.phone) {
-            messageData.recipient_phone = church.phone;
-          } else {
+        try {
+          // Determine recipient info and skip if unavailable
+          let recipientEmail: string | undefined;
+          let recipientPhone: string | undefined;
+          if (template.type === 'email') recipientEmail = church.email || undefined;
+          if (template.type === 'sms' || template.type === 'whatsapp') recipientPhone = church.phone || undefined;
+          if ((template.type === 'email' && !recipientEmail) || ((template.type === 'sms' || template.type === 'whatsapp') && !recipientPhone)) {
             console.log(`Skipping church ${church.name} - no ${template.type} contact info`);
             continue;
           }
 
-          // Insert message record
-          const { data: messageRecord, error: messageError } = await supabase
+          // Find existing message for this campaign/church/template to avoid duplicates
+          const { data: existingMessage, error: existingError } = await supabase
             .from('messages')
-            .insert([messageData])
-            .select()
-            .single();
+            .select('*')
+            .eq('campaign_id', campaignId)
+            .eq('church_id', church.id)
+            .eq('template_id', template.id)
+            .maybeSingle();
+          if (existingError) {
+            console.error('Error checking existing message:', existingError);
+          }
 
-          if (messageError) {
-            console.error(`Error creating message record for church ${church.name}:`, messageError);
-            failureCount++;
+          // Build/ensure message record
+          let messageId: string | null = existingMessage?.id ?? null;
+          let messageStatus = existingMessage?.status as string | undefined;
+
+          if (existingMessage && messageStatus === 'sent') {
+            // Already sent, skip
             continue;
+          }
+
+          if (!messageId) {
+            const { data: inserted, error: insertError } = await supabase
+              .from('messages')
+              .insert([{
+                campaign_id: campaignId,
+                church_id: church.id,
+                template_id: template.id,
+                type: template.type,
+                content: template.content,
+                subject: template.subject,
+                created_by: user.id,
+                status: 'pending',
+                recipient_email: recipientEmail,
+                recipient_phone: recipientPhone,
+              }])
+              .select()
+              .single();
+            if (insertError) {
+              console.error(`Error creating message record for church ${church.name}:`, insertError);
+              failureCount++;
+              continue;
+            }
+            messageId = inserted.id;
+          }
+
+          // Check status again right before sending to respect recent pauses/stops
+          const statusBeforeSend = await getCampaignStatus();
+          if (statusBeforeSend && statusBeforeSend !== 'active') {
+            console.log(`Aborting send for church ${church.name}: campaign is ${statusBeforeSend}`);
+            break;
           }
 
           // Send the actual message based on type
           if (template.type === 'email') {
             const { error: emailError } = await supabase.functions.invoke('send-email', {
-              headers: {
-                'Authorization': authHeader,
-              },
+              headers: { 'Authorization': authHeader },
               body: {
-                to: church.email,
+                to: recipientEmail,
                 subject: template.subject || `Message from ${campaign.name}`,
                 content: template.content,
                 templateId: template.id,
                 campaignId: campaign.id,
-                churchId: church.id
+                churchId: church.id,
               }
             });
 
@@ -230,26 +278,24 @@ const handler = async (req: Request): Promise<Response> => {
               await supabase
                 .from('messages')
                 .update({ status: 'failed', failed_reason: emailError.message })
-                .eq('id', messageRecord.id);
+                .eq('id', messageId!);
               failureCount++;
             } else {
               await supabase
                 .from('messages')
                 .update({ status: 'sent', sent_at: new Date().toISOString() })
-                .eq('id', messageRecord.id);
+                .eq('id', messageId!);
               successCount++;
             }
           } else if (template.type === 'sms') {
             const { error: smsError } = await supabase.functions.invoke('send-sms', {
-              headers: {
-                'Authorization': authHeader,
-              },
+              headers: { 'Authorization': authHeader },
               body: {
-                to: church.phone,
+                to: recipientPhone,
                 content: template.content,
                 templateId: template.id,
                 campaignId: campaign.id,
-                churchId: church.id
+                churchId: church.id,
               }
             });
 
@@ -257,38 +303,28 @@ const handler = async (req: Request): Promise<Response> => {
               console.error(`Error sending SMS to ${church.name}:`, smsError);
               await supabase
                 .from('messages')
-                .update({ 
-                  status: 'failed', 
-                  failed_reason: smsError.message || `SMS sending failed for ${church.name}`
-                })
-                .eq('id', messageRecord.id);
+                .update({ status: 'failed', failed_reason: smsError.message || `SMS sending failed for ${church.name}` })
+                .eq('id', messageId!);
               failureCount++;
             } else {
               await supabase
                 .from('messages')
                 .update({ status: 'sent', sent_at: new Date().toISOString() })
-                .eq('id', messageRecord.id);
+                .eq('id', messageId!);
               successCount++;
             }
           } else if (template.type === 'whatsapp') {
-            console.log(`Sending WhatsApp message to church ${church.id}, phone: ${church.phone}`)
-            
-            if (!church.phone) {
-              throw new Error(`Church ${church.name} does not have a phone number`)
-            }
-
+            console.log(`Sending WhatsApp message to church ${church.id}, phone: ${recipientPhone}`);
             const { error: whatsappError } = await supabase.functions.invoke('send-whatsapp', {
-              headers: {
-                'Authorization': authHeader,
-              },
+              headers: { 'Authorization': authHeader },
               body: {
-                recipient_phone: church.phone,
+                recipient_phone: recipientPhone,
                 message_body: template.content,
                 message_type: 'text',
                 provider: 'twilio',
                 templateId: template.id,
                 campaignId: campaign.id,
-                churchId: church.id
+                churchId: church.id,
               }
             });
 
@@ -296,17 +332,14 @@ const handler = async (req: Request): Promise<Response> => {
               console.error(`Error sending WhatsApp to ${church.name}:`, whatsappError);
               await supabase
                 .from('messages')
-                .update({ 
-                  status: 'failed', 
-                  failed_reason: whatsappError.message || `WhatsApp sending failed for ${church.name}`
-                })
-                .eq('id', messageRecord.id);
+                .update({ status: 'failed', failed_reason: whatsappError.message || `WhatsApp sending failed for ${church.name}` })
+                .eq('id', messageId!);
               failureCount++;
             } else {
               await supabase
                 .from('messages')
                 .update({ status: 'sent', sent_at: new Date().toISOString() })
-                .eq('id', messageRecord.id);
+                .eq('id', messageId!);
               successCount++;
             }
           }
@@ -316,7 +349,7 @@ const handler = async (req: Request): Promise<Response> => {
         }
       }
 
-      console.log(`Campaign ${campaignId} completed: ${successCount} sent, ${failureCount} failed`);
+      console.log(`Campaign ${campaignId} send loop finished: ${successCount} sent, ${failureCount} failed`);
     }
 
     console.log(`Campaign ${campaignId} ${action} completed successfully`);
