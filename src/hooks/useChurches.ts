@@ -47,6 +47,9 @@ export interface ChurchFilters {
   hasEmail?: boolean;
   hasPhone?: boolean;
   hasWebsite?: boolean;
+  countries?: string[];
+  denominations?: string[];
+  verified?: boolean;
 }
 
 export const useChurches = (searchTerm?: string, filters?: ChurchFilters) => {
@@ -73,6 +76,18 @@ export const useChurches = (searchTerm?: string, filters?: ChurchFilters) => {
       
       if (filters?.hasWebsite) {
         query = query.not('website', 'is', null).neq('website', '');
+      }
+
+      if (filters?.countries && filters.countries.length > 0) {
+        query = query.in('country', filters.countries);
+      }
+
+      if (filters?.denominations && filters.denominations.length > 0) {
+        query = query.in('denomination', filters.denominations);
+      }
+
+      if (filters?.verified !== undefined) {
+        query = query.eq('verified', filters.verified);
       }
 
       const { data, error } = await query;
