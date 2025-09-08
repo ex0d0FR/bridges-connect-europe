@@ -229,18 +229,7 @@ function extractEmailsFromText(text: string): string[] {
 }
 
 async function performWebSearch(query: string): Promise<string | null> {
-  // Try Tavily first (primary choice)
-  const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
-  if (tavilyApiKey) {
-    try {
-      const tavilyResult = await searchWithTavily(query, tavilyApiKey);
-      if (tavilyResult) return tavilyResult;
-    } catch (error) {
-      console.log(`Tavily search failed: ${error.message}`);
-    }
-  }
-  
-  // Try SerpAPI as fallback
+  // Try SerpAPI first (primary choice)
   const serpApiKey = Deno.env.get('SERPAPI_KEY');
   if (serpApiKey) {
     try {
@@ -248,6 +237,17 @@ async function performWebSearch(query: string): Promise<string | null> {
       if (serpResult) return serpResult;
     } catch (error) {
       console.log(`SerpAPI search failed: ${error.message}`);
+    }
+  }
+  
+  // Try Tavily as fallback
+  const tavilyApiKey = Deno.env.get('TAVILY_API_KEY');
+  if (tavilyApiKey) {
+    try {
+      const tavilyResult = await searchWithTavily(query, tavilyApiKey);
+      if (tavilyResult) return tavilyResult;
+    } catch (error) {
+      console.log(`Tavily search failed: ${error.message}`);
     }
   }
   
