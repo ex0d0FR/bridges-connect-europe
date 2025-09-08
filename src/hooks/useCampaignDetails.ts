@@ -206,6 +206,7 @@ export const useRetryFailedMessages = () => {
                 recipient_phone: message.recipient_phone,
                 message_body: message.content,
                 message_type: 'text',
+                provider: 'twilio',
                 templateId: message.template_id,
                 campaignId: message.campaign_id,
                 churchId: message.church_id
@@ -225,16 +226,28 @@ export const useRetryFailedMessages = () => {
           if (retryError) {
             console.error(`Failed to retry message ${message.id}:`, retryError)
             
+            // Extract more detailed error information
+            let detailedError = retryError.message || 'Unknown retry error'
+            if (retryError.context?.status) {
+              detailedError += ` (HTTP ${retryError.context.status})`
+            }
+            
             // Update message status to failed with detailed error
             await supabase
               .from('messages')
               .update({ 
                 status: 'failed', 
-                failed_reason: retryError.message || 'Unknown retry error'
+                failed_reason: detailedError
               })
               .eq('id', message.id)
             
-            return { success: false, messageId: message.id, error: retryError.message || retryError }
+            return { 
+              success: false, 
+              messageId: message.id, 
+              error: detailedError,
+              messageType: message.type,
+              recipient: message.recipient_email || message.recipient_phone
+            }
           }
 
           // Update message status to sent on success
@@ -246,10 +259,21 @@ export const useRetryFailedMessages = () => {
             })
             .eq('id', message.id)
 
-          return { success: true, messageId: message.id }
+          return { 
+            success: true, 
+            messageId: message.id, 
+            messageType: message.type,
+            recipient: message.recipient_email || message.recipient_phone
+          }
         } catch (error) {
           console.error(`Error retrying message ${message.id}:`, error)
-          return { success: false, messageId: message.id, error }
+          return { 
+            success: false, 
+            messageId: message.id, 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            messageType: message.type,
+            recipient: message.recipient_email || message.recipient_phone
+          }
         }
       })
 
@@ -259,6 +283,7 @@ export const useRetryFailedMessages = () => {
     onSuccess: (results) => {
       const successCount = results.filter(r => r.success).length
       const failCount = results.filter(r => !r.success).length
+      const failedResults = results.filter(r => !r.success)
 
       if (successCount > 0) {
         toast({
@@ -268,9 +293,31 @@ export const useRetryFailedMessages = () => {
       }
 
       if (failCount > 0 && successCount === 0) {
+        // Show specific error for the first failure to help with debugging
+        const firstError = failedResults[0]
         toast({
           title: "Retry Failed",
-          description: "Failed to retry messages. Please check your configuration.",
+          description: firstError?.error ? 
+            `${firstError.messageType?.toUpperCase()} to ${firstError.recipient}: ${firstError.error}` :
+            "Failed to retry messages. Please check your configuration.",
+          variant: "destructive",
+        })
+      } else if (failCount > 0) {
+        // Show summary when some succeeded and some failed
+        const errorsByType = failedResults.reduce((acc, result) => {
+          const type = result.messageType || 'unknown'
+          if (!acc[type]) acc[type] = []
+          acc[type].push(result.error || 'Unknown error')
+          return acc
+        }, {} as Record<string, string[]>)
+        
+        const errorSummary = Object.entries(errorsByType)
+          .map(([type, errors]) => `${type.toUpperCase()}: ${errors[0]}`)
+          .join('; ')
+        
+        toast({
+          title: "Partial Retry Success",
+          description: `${failCount} failed: ${errorSummary}`,
           variant: "destructive",
         })
       }

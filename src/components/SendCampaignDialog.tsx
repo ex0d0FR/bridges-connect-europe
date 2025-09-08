@@ -63,6 +63,7 @@ export default function SendCampaignDialog({
   const handleClose = () => {
     onOpenChange(false)
     setIsConfirmed(false)
+    setSelectedTemplateId(undefined)
   }
 
   if (!campaign) return null
@@ -107,18 +108,28 @@ export default function SendCampaignDialog({
           {/* Template Selection */}
           <div className="space-y-2">
             <h5 className="font-medium text-sm">Select template</h5>
-            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-              <SelectTrigger aria-label="Select campaign template">
-                <SelectValue placeholder="Choose a template (email/SMS/WhatsApp)" />
-              </SelectTrigger>
-              <SelectContent>
-                {templates?.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name} — {t.type.toUpperCase()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!templates || templates.length === 0 ? (
+              <div className="text-center p-4 border border-dashed rounded-lg">
+                <MessageSquare className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-2">No templates available</p>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="/templates">Create Template</a>
+                </Button>
+              </div>
+            ) : (
+              <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                <SelectTrigger aria-label="Select campaign template">
+                  <SelectValue placeholder="Choose a template (email/SMS/WhatsApp)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates?.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name} — {t.type.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <p className="text-xs text-muted-foreground">
               The selected template determines the channel (email, SMS, or WhatsApp).
             </p>

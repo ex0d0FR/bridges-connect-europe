@@ -13,6 +13,7 @@ import { useCampaignContacts, useAddCampaignContact, useRemoveCampaignContact } 
 import { useFollowUpTasks } from "@/hooks/useFollowUpTasks"
 import SendCampaignDialog from "@/components/SendCampaignDialog"
 import CreateFollowUpTaskDialog from "@/components/CreateFollowUpTaskDialog"
+import CampaignDebugInfo from "@/components/CampaignDebugInfo"
 
 export default function CampaignDetails() {
   const { id } = useParams<{ id: string }>()
@@ -201,6 +202,11 @@ export default function CampaignDetails() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug Information - only show if there are issues */}
+      {(failedMessages > 0 || campaign.status === 'draft') && (
+        <CampaignDebugInfo campaignId={id!} />
+      )}
 
       {/* Detailed Analytics */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
