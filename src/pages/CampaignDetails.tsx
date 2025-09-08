@@ -5,12 +5,20 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, Pause, Play, RefreshCw, CheckCircle, XCircle, Clock, Send, Eye, MousePointer, MessageSquare, Settings } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ArrowLeft, Pause, Play, RefreshCw, CheckCircle, XCircle, Clock, Send, Eye, MousePointer, MessageSquare, Settings, Users, Phone, Mail, Plus, Calendar, User } from "lucide-react"
 import { useCampaignDetails, useRetryFailedMessages } from "@/hooks/useCampaignDetails"
+import { useUpdateCampaignStatus } from "@/hooks/useCampaigns"
+import { useCampaignContacts, useAddCampaignContact, useRemoveCampaignContact } from "@/hooks/useCampaignContacts"
+import { useFollowUpTasks } from "@/hooks/useFollowUpTasks"
+import SendCampaignDialog from "@/components/SendCampaignDialog"
+import CreateFollowUpTaskDialog from "@/components/CreateFollowUpTaskDialog"
 
 export default function CampaignDetails() {
   const { id } = useParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState("overview")
+  const [showSendDialog, setShowSendDialog] = useState(false)
+  const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
   
   const { 
     data: campaign, 
@@ -20,7 +28,10 @@ export default function CampaignDetails() {
     engagementStats 
   } = useCampaignDetails(id!)
   
+  const { data: contacts } = useCampaignContacts(id!)
+  const { data: followUpTasks } = useFollowUpTasks(id!)
   const retryFailedMessages = useRetryFailedMessages()
+  const updateCampaignStatus = useUpdateCampaignStatus()
 
   if (isLoading) {
     return (
@@ -77,18 +88,44 @@ export default function CampaignDetails() {
           <Badge variant={campaign.status === 'active' ? 'default' : 'outline'}>
             {campaign.status}
           </Badge>
+          
+          {/* Send Campaign Button */}
+          {campaign.status === 'draft' && (
+            <Button 
+              size="sm"
+              onClick={() => setShowSendDialog(true)}
+              className="bg-primary hover:bg-primary/90"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Send Campaign
+            </Button>
+          )}
+          
+          {/* Pause/Resume */}
           {campaign.status === 'active' && (
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateCampaignStatus.mutate({ campaignId: id!, status: 'paused' })}
+              disabled={updateCampaignStatus.isPending}
+            >
               <Pause className="h-4 w-4 mr-2" />
               Pause
             </Button>
           )}
           {campaign.status === 'paused' && (
-            <Button variant="outline" size="sm">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => updateCampaignStatus.mutate({ campaignId: id!, status: 'active' })}
+              disabled={updateCampaignStatus.isPending}
+            >
               <Play className="h-4 w-4 mr-2" />
               Resume
             </Button>
           )}
+          
+          {/* Retry Failed */}
           {failedMessages > 0 && (
             <Button 
               variant="outline" 
@@ -100,12 +137,6 @@ export default function CampaignDetails() {
               Retry Failed
             </Button>
           )}
-          <Link to="/settings">
-            <Button variant="outline" size="sm">
-              <Settings className="h-4 w-4 mr-2" />
-              Test Messages
-            </Button>
-          </Link>
         </div>
       </div>
 
@@ -164,6 +195,8 @@ export default function CampaignDetails() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="messages">Messages</TabsTrigger>
+          <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="follow-ups">Follow-ups</TabsTrigger>
           <TabsTrigger value="engagement">Engagement</TabsTrigger>
           <TabsTrigger value="errors">Errors</TabsTrigger>
         </TabsList>
@@ -270,6 +303,182 @@ export default function CampaignDetails() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="contacts">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Campaign Contacts</CardTitle>
+                  <CardDescription>Manage church contacts for this campaign</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => setShowCreateTaskDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Contact
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {contacts && contacts.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Church</TableHead>
+                      <TableHead>Contact Info</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Engagement</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {contacts.map((contact) => (
+                      <TableRow key={contact.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <div className="font-medium">
+                                {contact.contacts?.first_name} {contact.contacts?.last_name}
+                              </div>
+                              {contact.contacts?.position && (
+                                <div className="text-sm text-muted-foreground">
+                                  {contact.contacts.position}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{contact.churches?.name}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {contact.contacts?.email && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Mail className="h-3 w-3" />
+                                {contact.contacts.email}
+                              </div>
+                            )}
+                            {contact.contacts?.phone && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Phone className="h-3 w-3" />
+                                {contact.contacts.phone}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{contact.role}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium">{contact.engagement_score}/100</div>
+                            <Progress value={contact.engagement_score} className="w-16" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm">
+                            Edit
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No contacts found for this campaign</p>
+                  <p className="text-sm">Add contacts to track engagement and manage follow-ups</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="follow-ups">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Follow-up Tasks</CardTitle>
+                  <CardDescription>Track and manage follow-up activities</CardDescription>
+                </div>
+                <Button size="sm" onClick={() => setShowCreateTaskDialog(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Task
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {followUpTasks && followUpTasks.length > 0 ? (
+                <div className="space-y-4">
+                  {followUpTasks.map((task) => (
+                    <div key={task.id} className="border rounded-lg p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{task.title}</h4>
+                            <Badge variant={
+                              task.priority === 'urgent' ? 'destructive' :
+                              task.priority === 'high' ? 'default' :
+                              'outline'
+                            }>
+                              {task.priority}
+                            </Badge>
+                            <Badge variant={
+                              task.status === 'completed' ? 'default' :
+                              task.status === 'in_progress' ? 'secondary' :
+                              'outline'
+                            }>
+                              {task.status.replace('_', ' ')}
+                            </Badge>
+                          </div>
+                          {task.description && (
+                            <p className="text-sm text-muted-foreground">{task.description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No due date'}
+                            </div>
+                            {task.churches?.name && (
+                              <div className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {task.churches.name}
+                              </div>
+                            )}
+                            {task.contacts && (
+                              <div className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {task.contacts.first_name} {task.contacts.last_name}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm">
+                            Edit
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            Complete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No follow-up tasks yet</p>
+                  <p className="text-sm">Create tasks to track your outreach activities</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="engagement">
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
@@ -364,6 +573,23 @@ export default function CampaignDetails() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialogs */}
+      <SendCampaignDialog
+        open={showSendDialog}
+        onOpenChange={setShowSendDialog}
+        campaign={campaign}
+        churchCount={churchStats?.total || 0}
+        onCampaignSent={() => {
+          // Refresh campaign data after sending
+        }}
+      />
+
+      <CreateFollowUpTaskDialog
+        open={showCreateTaskDialog}
+        onOpenChange={setShowCreateTaskDialog}
+        campaignId={id!}
+      />
     </div>
   )
 }

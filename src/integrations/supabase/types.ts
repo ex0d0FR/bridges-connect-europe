@@ -86,6 +86,64 @@ export type Database = {
           },
         ]
       }
+      campaign_contacts: {
+        Row: {
+          campaign_id: string | null
+          church_id: string | null
+          contact_id: string | null
+          created_at: string
+          engagement_score: number | null
+          id: string
+          last_interaction_date: string | null
+          notes: string | null
+          role: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          church_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          engagement_score?: number | null
+          id?: string
+          last_interaction_date?: string | null
+          notes?: string | null
+          role?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          church_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          engagement_score?: number | null
+          id?: string
+          last_interaction_date?: string | null
+          notes?: string | null
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_contacts_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_contacts_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_tasks: {
         Row: {
           assigned_to: string | null
@@ -536,6 +594,88 @@ export type Database = {
         }
         Relationships: []
       }
+      follow_up_tasks: {
+        Row: {
+          assigned_to: string | null
+          campaign_id: string | null
+          church_id: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          metadata: Json | null
+          notes: string | null
+          priority: string
+          status: string
+          task_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          church_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          priority?: string
+          status?: string
+          task_type: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          campaign_id?: string | null
+          church_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          metadata?: Json | null
+          notes?: string | null
+          priority?: string
+          status?: string
+          task_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_tasks_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_tasks_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gdpr_consents: {
         Row: {
           church_id: string | null
@@ -577,6 +717,62 @@ export type Database = {
           withdrawal_date?: string | null
         }
         Relationships: []
+      }
+      message_responses: {
+        Row: {
+          campaign_id: string | null
+          church_id: string | null
+          created_at: string
+          follow_up_required: boolean | null
+          id: string
+          lead_score: number | null
+          message_id: string | null
+          metadata: Json | null
+          processed_at: string | null
+          received_at: string
+          response_content: string | null
+          response_type: string
+          sentiment: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          church_id?: string | null
+          created_at?: string
+          follow_up_required?: boolean | null
+          id?: string
+          lead_score?: number | null
+          message_id?: string | null
+          metadata?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          response_content?: string | null
+          response_type: string
+          sentiment?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          church_id?: string | null
+          created_at?: string
+          follow_up_required?: boolean | null
+          id?: string
+          lead_score?: number | null
+          message_id?: string | null
+          metadata?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          response_content?: string | null
+          response_type?: string
+          sentiment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_responses_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {
