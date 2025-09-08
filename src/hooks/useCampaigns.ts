@@ -153,3 +153,73 @@ export const useLaunchCampaign = () => {
     },
   });
 };
+
+export const useDeleteCampaign = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('campaigns')
+        .delete()
+        .eq('id', campaignId)
+        .eq('created_by', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-stats'] });
+      toast({
+        title: "Success",
+        description: "Campaign deleted successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete campaign",
+        variant: "destructive",
+      });
+    },
+  });
+};
+
+export const useUpdateCampaignStatus = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ campaignId, status }: { campaignId: string; status: Campaign['status'] }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('campaigns')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', campaignId)
+        .eq('created_by', user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign-stats'] });
+      toast({
+        title: "Success",
+        description: "Campaign status updated successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update campaign status",
+        variant: "destructive",
+      });
+    },
+  });
+};
