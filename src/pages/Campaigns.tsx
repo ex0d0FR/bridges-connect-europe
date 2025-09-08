@@ -64,7 +64,7 @@ export default function Campaigns() {
   }
 
   const handleLaunchCampaign = (campaignId: string) => {
-    launchCampaignMutation.mutate(campaignId)
+    launchCampaignMutation.mutate({ campaignId })
   }
 
   const handleManageChurches = (campaign: Campaign) => {

@@ -1,9 +1,12 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { supabase } from "@/integrations/supabase/client"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Separator } from "@/components/ui/separator"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Send, Calendar, Users, MessageSquare, AlertTriangle } from "lucide-react"
 import { useLaunchCampaign } from "@/hooks/useCampaigns"
 import type { CampaignDetails } from "@/hooks/useCampaignDetails"
@@ -24,16 +27,34 @@ export default function SendCampaignDialog({
   onCampaignSent 
 }: SendCampaignDialogProps) {
   const [isConfirmed, setIsConfirmed] = useState(false)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined)
   const launchCampaign = useLaunchCampaign()
 
+  // Load user's templates to allow explicit selection
+  const { data: templates } = useQuery({
+    queryKey: ['my-templates'],
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+      const { data, error } = await supabase
+        .from('templates')
+        .select('id, name, type, subject')
+        .eq('created_by', user.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return data as Array<{ id: string; name: string; type: 'email' | 'sms' | 'whatsapp'; subject?: string }>
+    },
+  })
+
   const handleSend = async () => {
-    if (!campaign || !isConfirmed) return
+    if (!campaign || !isConfirmed || !selectedTemplateId) return
 
     try {
-      await launchCampaign.mutateAsync(campaign.id)
+      await launchCampaign.mutateAsync({ campaignId: campaign.id, templateId: selectedTemplateId })
       onCampaignSent?.()
       onOpenChange(false)
       setIsConfirmed(false)
+      setSelectedTemplateId(undefined)
     } catch (error) {
       console.error('Failed to send campaign:', error)
     }
@@ -83,6 +104,26 @@ export default function SendCampaignDialog({
 
           <Separator />
 
+          {/* Template Selection */}
+          <div className="space-y-2">
+            <h5 className="font-medium text-sm">Select template</h5>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger aria-label="Select campaign template">
+                <SelectValue placeholder="Choose a template (email/SMS/WhatsApp)" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates?.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name} — {t.type.toUpperCase()}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The selected template determines the channel (email, SMS, or WhatsApp).
+            </p>
+          </div>
+
           {/* Warning Alert */}
           <Alert>
             <AlertTriangle className="h-4 w-4" />
@@ -127,7 +168,7 @@ export default function SendCampaignDialog({
           </Button>
           <Button 
             onClick={handleSend}
-            disabled={!isConfirmed || launchCampaign.isPending}
+            disabled={!isConfirmed || !selectedTemplateId || launchCampaign.isPending}
             className="bg-primary hover:bg-primary/90"
           >
             {launchCampaign.isPending ? (

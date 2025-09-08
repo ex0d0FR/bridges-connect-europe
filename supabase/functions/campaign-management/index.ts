@@ -10,6 +10,7 @@ interface CampaignAction {
   action: 'start' | 'pause' | 'stop' | 'schedule';
   campaignId: string;
   scheduleTime?: string;
+  templateId?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -18,7 +19,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { action, campaignId, scheduleTime }: CampaignAction = await req.json();
+    const { action, campaignId, scheduleTime, templateId }: CampaignAction = await req.json();
     
     // Get auth header and extract JWT token
     const authHeader = req.headers.get('Authorization');
@@ -150,20 +151,35 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log(`Found ${campaignChurches.length} churches for campaign ${campaignId}`)
 
-      // For now, we'll use a default template since campaigns don't have template_id yet
-      // This should be improved to link campaigns to specific templates
-      const { data: templates, error: templateError } = await supabase
-        .from('templates')
-        .select('*')
-        .eq('created_by', user.id)
-        .limit(1);
-
-      if (templateError || !templates?.length) {
-        console.error('Error fetching template:', templateError);
-        throw new Error('No template found. Please create a template first before launching a campaign.');
+      // Determine template to use: prefer provided templateId, fallback to user's latest
+      let template: any = null;
+      if (templateId) {
+        const { data: selected, error: selectedErr } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('id', templateId)
+          .eq('created_by', user.id)
+          .single();
+        if (selectedErr || !selected) {
+          console.error('Selected template fetch error:', selectedErr);
+          throw new Error('Selected template not found or access denied.');
+        }
+        template = selected;
+        console.log(`Using selected template ${template.id} (${template.type})`);
+      } else {
+        const { data: templates, error: templateError } = await supabase
+          .from('templates')
+          .select('*')
+          .eq('created_by', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (templateError || !templates?.length) {
+          console.error('Error fetching template:', templateError);
+          throw new Error('No template found. Please create a template first before launching a campaign.');
+        }
+        template = templates[0];
       }
 
-      const template = templates[0];
       console.log(`Starting to send ${template.type} messages to ${campaignChurches.length} churches`);
 
       // Helper to check latest campaign status so pause/stop can take effect mid-run

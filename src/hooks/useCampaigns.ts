@@ -110,8 +110,8 @@ export const useLaunchCampaign = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (campaignId: string) => {
-      console.log('Launching campaign:', campaignId);
+    mutationFn: async ({ campaignId, templateId }: { campaignId: string; templateId?: string }) => {
+      console.log('Launching campaign:', campaignId, 'with template:', templateId);
       
       // Check if user is authenticated
       const { data: { user } } = await supabase.auth.getUser();
@@ -124,7 +124,8 @@ export const useLaunchCampaign = () => {
       const { data, error } = await supabase.functions.invoke('campaign-management', {
         body: {
           action: 'start',
-          campaignId: campaignId
+          campaignId,
+          templateId,
         }
       });
 
