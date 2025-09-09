@@ -23,6 +23,8 @@ import Settings from "./pages/Settings";
 import UserManagement from "./pages/UserManagement";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Debug from "./pages/Debug";
+import SMSDebug from "./pages/SMSDebug";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut } from "lucide-react";
@@ -68,6 +70,8 @@ const AppContent = () => {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/debug" element={<Debug />} />
+              <Route path="/sms-debug" element={<SMSDebug />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

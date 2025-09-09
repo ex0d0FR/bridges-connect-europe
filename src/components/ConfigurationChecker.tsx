@@ -15,28 +15,28 @@ interface ConfigStatus {
 export function ConfigurationChecker() {
   const [configs, setConfigs] = useState<ConfigStatus[]>([
     {
-      service: 'SendGrid (Email)',
-      status: 'unknown',
-      description: 'Required for sending email messages',
-      helpUrl: 'https://sendgrid.com/docs/for-developers/sending-email/api-getting-started/'
+      service: 'Supabase',
+      status: 'configured',
+      description: 'Database and authentication backend - Already configured',
+      helpUrl: 'https://supabase.com/docs'
     },
     {
       service: 'Twilio (SMS)',
-      status: 'unknown', 
-      description: 'Required for sending SMS messages',
-      helpUrl: 'https://www.twilio.com/docs/usage/api'
+      status: 'missing', 
+      description: 'Required for sending SMS messages - Setup needed',
+      helpUrl: 'https://console.twilio.com/'
     },
     {
-      service: 'WhatsApp Business API',
-      status: 'unknown',
-      description: 'Required for sending WhatsApp messages',
-      helpUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api'
+      service: 'Twilio (WhatsApp)',
+      status: 'missing',
+      description: 'Required for sending WhatsApp messages - Setup needed',
+      helpUrl: 'https://console.twilio.com/'
     },
     {
-      service: 'Google Maps API',
-      status: 'unknown',
-      description: 'Used for church discovery features',
-      helpUrl: 'https://developers.google.com/maps/documentation/places/web-service'
+      service: 'Email Service',
+      status: 'configured',
+      description: 'Email sending capabilities - Available through Supabase',
+      helpUrl: 'https://supabase.com/docs/guides/auth/auth-smtp'
     }
   ])
   
@@ -180,13 +180,15 @@ export function ConfigurationChecker() {
         ))}
       </div>
 
-      {/* Configuration Help */}
+      {/* Twilio Setup Help */}
       {missingCount > 0 && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Some services are not configured. Go to the Settings page to add the required API keys and credentials. 
-            You can also check the Supabase Edge Functions secrets to ensure all environment variables are set correctly.
+            <strong>Twilio Setup Required:</strong> To enable SMS and WhatsApp functionality, you need to:
+            <br />• Set up a Twilio account at console.twilio.com
+            <br />• Add your Twilio credentials to the .env file and Supabase Edge Functions secrets
+            <br />• See the TWILIO_SETUP.md file in this project for detailed instructions
           </AlertDescription>
         </Alert>
       )}
