@@ -1090,6 +1090,10 @@ export type Database = {
         Args: { _admin_id: string; _user_id: string }
         Returns: boolean
       }
+      get_safe_message_data: {
+        Args: { _message_id: string; _user_id: string }
+        Returns: Json
+      }
       get_user_activity_summary: {
         Args: { _user_id: string }
         Returns: Json
