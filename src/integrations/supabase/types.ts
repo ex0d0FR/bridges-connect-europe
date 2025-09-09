@@ -1074,6 +1074,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_churches: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      can_access_contacts: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      can_manage_campaigns: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1081,9 +1093,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      invalidate_user_sessions: {
+        Args: { _user_id: string }
+        Returns: undefined
+      }
       is_user_approved: {
         Args: { _user_id: string }
         Returns: boolean
+      }
+      log_user_access: {
+        Args: { _action: string; _resource: string; _user_id: string }
+        Returns: undefined
       }
     }
     Enums: {

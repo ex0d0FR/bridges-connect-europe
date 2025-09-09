@@ -20,23 +20,62 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Verify authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.log('No authorization header');
+      return new Response(
+        JSON.stringify({ error: 'No authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify JWT and get user
+    const jwt = authHeader.replace('Bearer ', '');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    if (authError || !user) {
+      console.log('Auth error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify user is approved
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('status')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.status !== 'approved') {
+      console.log('User not approved:', profile?.status);
+      return new Response(
+        JSON.stringify({ error: 'User not approved for this operation' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('User verified and approved:', user.id);
+    
     const { type, userId, adminEmails, rejectionReason }: NotificationRequest = await req.json();
 
     console.log(`Processing ${type} notification for user ${userId}`);
 
     // Get user profile
-    const { data: profile, error: profileError } = await supabase
+    const { data: targetProfile, error: targetProfileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
 
-    if (profileError) {
-      throw new Error(`Failed to fetch user profile: ${profileError.message}`);
+    if (targetProfileError) {
+      throw new Error(`Failed to fetch user profile: ${targetProfileError.message}`);
     }
 
     // Handle different notification types
@@ -47,19 +86,19 @@ const handler = async (req: Request): Promise<Response> => {
           console.log(`Notifying ${adminEmails.length} admins of new registration`);
           // In a real implementation, you would send emails here
           // For now, we'll just log the notification
-          console.log(`New user registration: ${profile.email} (${profile.full_name})`);
+          console.log(`New user registration: ${targetProfile.email} (${targetProfile.full_name})`);
         }
         break;
 
       case 'approval':
         // Notify user of approval
-        console.log(`User ${profile.email} has been approved`);
+        console.log(`User ${targetProfile.email} has been approved`);
         // In a real implementation, you would send an approval email here
         break;
 
       case 'rejection':
         // Notify user of rejection
-        console.log(`User ${profile.email} has been rejected. Reason: ${rejectionReason}`);
+        console.log(`User ${targetProfile.email} has been rejected. Reason: ${rejectionReason}`);
         // In a real implementation, you would send a rejection email here
         break;
 

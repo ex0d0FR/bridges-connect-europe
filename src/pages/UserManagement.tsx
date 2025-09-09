@@ -1,32 +1,56 @@
 import { useState } from "react";
-import { useAllProfiles, useUpdateUserStatus, useIsAdmin } from "@/hooks/useProfile";
-import { useSecurityLogging } from "@/hooks/useSecurityLogging";
-import { Badge } from "@/components/ui/badge";
+import { useIsAdmin, useAllProfiles, useUpdateUserStatus } from "@/hooks/useProfile";
+import { AdminSecurityDashboard } from "@/components/AdminSecurityDashboard";
+import { UserActivityDisplay } from "@/components/UserActivityDisplay";
+import { useUserActivityMonitor } from "@/hooks/useUserActivityMonitor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger 
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Loader2, UserCheck, UserX, Users, Clock, CheckCircle, XCircle, Pause } from "lucide-react";
+import { useSecurityLogging } from "@/hooks/useSecurityLogging";
+import { 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  Users, 
+  Shield, 
+  AlertTriangle,
+  User,
+  Ban
+} from "lucide-react";
 import { Navigate } from "react-router-dom";
-import { format } from "date-fns";
+import { Loader2 } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
-const UserManagement = () => {
+export default function UserManagement() {
   const isAdmin = useIsAdmin();
-  const { data: profiles, isLoading } = useAllProfiles();
+  const { data: profiles, isLoading: profilesLoading } = useAllProfiles();
   const updateUserStatus = useUpdateUserStatus();
-  const { logDataAccess, logAdminAction } = useSecurityLogging();
-  
+  const { logAdminAction } = useSecurityLogging();
+  const { logUserAction } = useUserActivityMonitor();
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [actionType, setActionType] = useState<'approve' | 'reject' | 'suspend' | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [actionType, setActionType] = useState<"approve" | "reject" | "suspend" | null>(null);
+
+  // Log page access
+  logUserAction('page_access', 'user_management', { page: 'user_management' });
 
   if (!isAdmin) {
     return <Navigate to="/" replace />;
   }
 
-  if (isLoading) {
+  if (profilesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -39,256 +63,171 @@ const UserManagement = () => {
   const rejectedUsers = profiles?.filter(p => p.status === 'rejected') || [];
   const suspendedUsers = profiles?.filter(p => p.status === 'suspended') || [];
 
-  const handleAction = (user: any, action: 'approve' | 'reject' | 'suspend') => {
-    setSelectedUser(user);
-    setActionType(action);
-    setRejectionReason("");
-  };
+  const handleUserAction = async (user: any, action: "approve" | "reject" | "suspend") => {
+    try {
+      await updateUserStatus.mutateAsync({
+        userId: user.id,
+        status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'suspended',
+        rejectionReason: action === 'reject' ? rejectionReason : undefined,
+      });
 
-  const confirmAction = async () => {
-    if (!selectedUser || !actionType) return;
-    
-    // Log admin action for security monitoring
-    logAdminAction(`user_management_${actionType}`, selectedUser.id, {
-      user_email: selectedUser.email,
-      previous_status: selectedUser.status,
-      new_status: actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'suspended',
-      rejection_reason: actionType === 'reject' ? rejectionReason : undefined,
-    });
-    
-    await updateUserStatus.mutateAsync({
-      userId: selectedUser.id,
-      status: actionType === 'approve' ? 'approved' : actionType === 'reject' ? 'rejected' : 'suspended',
-      rejectionReason: actionType === 'reject' ? rejectionReason : undefined,
-    });
-    
-    setSelectedUser(null);
-    setActionType(null);
-    setRejectionReason("");
-  };
+      logAdminAction(`user_management_${action}`, user.id, {
+        user_email: user.email,
+        previous_status: user.status,
+        new_status: action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'suspended',
+        rejection_reason: action === 'reject' ? rejectionReason : undefined,
+      });
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="h-4 w-4" />;
-      case 'approved':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'rejected':
-        return <XCircle className="h-4 w-4" />;
-      case 'suspended':
-        return <Pause className="h-4 w-4" />;
-      default:
-        return null;
+      setDialogOpen(false);
+      setRejectionReason("");
+      setSelectedUser(null);
+      setActionType(null);
+    } catch (error) {
+      console.error('Error updating user status:', error);
     }
   };
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'secondary';
-      case 'approved':
-        return 'default';
-      case 'rejected':
-        return 'destructive';
-      case 'suspended':
-        return 'outline';
-      default:
-        return 'secondary';
-    }
-  };
-
-  const UserCard = ({ user }: { user: any }) => (
-    <Card className="mb-4">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">{user.full_name || user.email}</CardTitle>
-            <CardDescription>{user.email}</CardDescription>
-          </div>
-          <Badge variant={getStatusVariant(user.status)} className="flex items-center gap-1">
-            {getStatusIcon(user.status)}
-            {user.status}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2 text-sm text-muted-foreground">
-          <p>Registered: {format(new Date(user.created_at), 'PPP')}</p>
-          {user.approved_at && (
-            <p>Approved: {format(new Date(user.approved_at), 'PPP')}</p>
-          )}
-          {user.rejection_reason && (
-            <p>Rejection reason: {user.rejection_reason}</p>
-          )}
-        </div>
-        
-        {user.status === 'pending' && (
-          <div className="flex gap-2 mt-4">
-            <Button
-              size="sm"
-              onClick={() => handleAction(user, 'approve')}
-              className="flex items-center gap-1"
-            >
-              <UserCheck className="h-4 w-4" />
-              Approve
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => handleAction(user, 'reject')}
-              className="flex items-center gap-1"
-            >
-              <UserX className="h-4 w-4" />
-              Reject
-            </Button>
-          </div>
-        )}
-        
-        {user.status === 'approved' && (
-          <div className="flex gap-2 mt-4">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleAction(user, 'suspend')}
-              className="flex items-center gap-1"
-            >
-              <Pause className="h-4 w-4" />
-              Suspend
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      <div className="flex items-center gap-3">
-        <Users className="h-8 w-8" />
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground">Manage user registrations and approvals</p>
+          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+          <p className="text-muted-foreground">
+            Manage user accounts, approvals, and security monitoring
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Shield className="h-5 w-5" />
+          <span className="text-sm font-medium">Admin Dashboard</span>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold">{pendingUsers.length}</p>
-                <p className="text-sm text-muted-foreground">Pending</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold">{approvedUsers.length}</p>
-                <p className="text-sm text-muted-foreground">Approved</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" />
-              <div>
-                <p className="text-2xl font-bold">{rejectedUsers.length}</p>
-                <p className="text-sm text-muted-foreground">Rejected</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Pause className="h-5 w-5 text-gray-500" />
-              <div>
-                <p className="text-2xl font-bold">{suspendedUsers.length}</p>
-                <p className="text-sm text-muted-foreground">Suspended</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            User Management
+          </TabsTrigger>
+          <TabsTrigger value="security" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Security Dashboard
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            My Activity
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Pending Users */}
-      {pendingUsers.length > 0 && (
-        <div>
-          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-            <Clock className="h-6 w-6 text-orange-500" />
-            Pending Approval ({pendingUsers.length})
-          </h2>
-          {pendingUsers.map(user => (
-            <UserCard key={user.id} user={user} />
-          ))}
-        </div>
-      )}
+        <TabsContent value="users" className="space-y-6">
+          {/* User Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{profiles?.length || 0}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{pendingUsers.length}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Approved</CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{approvedUsers.length}</div>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Issues</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{rejectedUsers.length + suspendedUsers.length}</div>
+              </CardContent>
+            </Card>
+          </div>
 
-      <Separator />
-
-      {/* Approved Users */}
-      <div>
-        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-          <CheckCircle className="h-6 w-6 text-green-500" />
-          Approved Users ({approvedUsers.length})
-        </h2>
-        {approvedUsers.length === 0 ? (
-          <p className="text-muted-foreground">No approved users yet.</p>
-        ) : (
-          approvedUsers.map(user => (
-            <UserCard key={user.id} user={user} />
-          ))
-        )}
-      </div>
-
-      {/* Other statuses */}
-      {(rejectedUsers.length > 0 || suspendedUsers.length > 0) && (
-        <>
-          <Separator />
-          
-          {rejectedUsers.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-                <XCircle className="h-6 w-6 text-red-500" />
-                Rejected Users ({rejectedUsers.length})
-              </h2>
-              {rejectedUsers.map(user => (
-                <UserCard key={user.id} user={user} />
-              ))}
-            </div>
+          {/* Pending Users */}
+          {pendingUsers.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Pending Approval ({pendingUsers.length})
+                </CardTitle>
+                <CardDescription>Users waiting for approval</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {pendingUsers.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <User className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{user.full_name || user.email}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Registered: {new Date(user.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setActionType('approve');
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setActionType('reject');
+                          setDialogOpen(true);
+                        }}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
           )}
-          
-          {suspendedUsers.length > 0 && (
-            <div>
-              <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-                <Pause className="h-6 w-6 text-gray-500" />
-                Suspended Users ({suspendedUsers.length})
-              </h2>
-              {suspendedUsers.map(user => (
-                <UserCard key={user.id} user={user} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+        </TabsContent>
+
+        <TabsContent value="security">
+          <AdminSecurityDashboard />
+        </TabsContent>
+
+        <TabsContent value="activity">
+          <UserActivityDisplay />
+        </TabsContent>
+      </Tabs>
 
       {/* Action Dialog */}
-      <Dialog open={!!selectedUser && !!actionType} onOpenChange={() => {
-        setSelectedUser(null);
-        setActionType(null);
-        setRejectionReason("");
-      }}>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -297,54 +236,36 @@ const UserManagement = () => {
               {actionType === 'suspend' && 'Suspend User'}
             </DialogTitle>
             <DialogDescription>
-              {actionType === 'approve' && 'This will approve the user and grant them access to the application.'}
-              {actionType === 'reject' && 'This will reject the user\'s application. They will not be able to access the application.'}
-              {actionType === 'suspend' && 'This will suspend the user\'s access to the application.'}
+              {selectedUser && `Are you sure you want to ${actionType} ${selectedUser.email}?`}
             </DialogDescription>
           </DialogHeader>
-          
-          {selectedUser && (
-            <div className="space-y-4">
-              <div>
-                <p><strong>User:</strong> {selectedUser.full_name || selectedUser.email}</p>
-                <p><strong>Email:</strong> {selectedUser.email}</p>
+          <div className="space-y-4">
+            {actionType === 'reject' && (
+              <div className="space-y-2">
+                <Label htmlFor="reason">Rejection Reason</Label>
+                <Textarea
+                  id="reason"
+                  placeholder="Please provide a reason for rejection..."
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                />
               </div>
-              
-              {actionType === 'reject' && (
-                <div className="space-y-2">
-                  <Label htmlFor="rejection-reason">Rejection Reason</Label>
-                  <Textarea
-                    id="rejection-reason"
-                    placeholder="Please provide a reason for rejection..."
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                  />
-                </div>
-              )}
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant={actionType === 'approve' ? 'default' : 'destructive'}
+                onClick={() => selectedUser && actionType && handleUserAction(selectedUser, actionType)}
+                disabled={actionType === 'reject' && !rejectionReason.trim()}
+              >
+                Confirm {actionType}
+              </Button>
             </div>
-          )}
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setSelectedUser(null);
-              setActionType(null);
-              setRejectionReason("");
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={confirmAction}
-              disabled={updateUserStatus.isPending || (actionType === 'reject' && !rejectionReason.trim())}
-              variant={actionType === 'approve' ? 'default' : 'destructive'}
-            >
-              {updateUserStatus.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Confirm {actionType}
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
   );
-};
-
-export default UserManagement;
+}
