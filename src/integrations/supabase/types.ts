@@ -1086,6 +1086,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      delete_user_safely: {
+        Args: { _admin_id: string; _user_id: string }
+        Returns: boolean
+      }
+      get_user_activity_summary: {
+        Args: { _user_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1095,6 +1103,10 @@ export type Database = {
       }
       invalidate_user_sessions: {
         Args: { _user_id: string }
+        Returns: undefined
+      }
+      invalidate_user_sessions_enhanced: {
+        Args: { _admin_id: string; _reason?: string; _user_id: string }
         Returns: undefined
       }
       is_user_approved: {
